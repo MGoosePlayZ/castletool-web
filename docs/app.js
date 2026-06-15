@@ -1,5 +1,6 @@
 let currentActiveDeckMap = null;
 
+// Populate initial backend address configurations from device storage memory contexts
 document.getElementById('backendUrl').value = localStorage.getItem('castle_backend_url') || '';
 updateAuthStatusDisplay();
 renderSavedDecks();
@@ -12,7 +13,7 @@ function getBackendUrl() {
     const url = document.getElementById('backendUrl').value.trim();
     if (!url) {
         alert("Please map your forward connection URL endpoint values first.");
-        throw new Error("Missing Base Url configuration array params strings");
+        throw new Error("Missing Base Url configuration parameters");
     }
     return url.replace(/\/$/, "");
 }
@@ -25,25 +26,36 @@ function updateAuthStatusDisplay() {
     const submitBtn = document.getElementById('submitRunBtn');
     
     if (token) {
-        badge.textContent = "✓ SESSION AUTHENTICATED (VOLATILE TOKEN SAVED)";
+        badge.textContent = "✓ Session Authenticated (Volatile Token Active)";
         badge.className = "security-pill unlocked";
         submitBtn.disabled = !currentActiveDeckMap;
     } else {
-        badge.textContent = "✕ ACCESS LOCKED: TOKEN SYNCHRONIZATION REQUIRED";
+        badge.textContent = "✕ Access Locked: Sync Token Parameters First";
         badge.className = "security-pill locked";
         submitBtn.disabled = true;
     }
 }
 
+// Fixed Tab Swapping Engine Loop Rules
 function switchTab(tabId) {
-    document.querySelectorAll('.tab-indicator').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(content => content.classList.remove('active'));
+    // 1. Clear active tags across all structural selectors
+    document.getElementById('btn-tab-pull').classList.remove('active');
+    document.getElementById('btn-tab-new').classList.remove('active');
     
-    event.target.classList.add('active');
-    document.getElementById(`tab-${tabId}`).classList.add('active');
+    document.getElementById('tab-pull').classList.remove('active');
+    document.getElementById('tab-new').classList.remove('active');
+    
+    // 2. Explicit target engagement matching array definitions
+    if (tabId === 'pull') {
+        document.getElementById('btn-tab-pull').classList.add('active');
+        document.getElementById('tab-pull').classList.add('active');
+    } else if (tabId === 'new') {
+        document.getElementById('btn-tab-new').classList.add('active');
+        document.getElementById('tab-new').classList.add('active');
+    }
 }
 
-// Authentication Loops Setup Logic
+// Authentication Loops Implementation Daemon
 document.getElementById('loginBtn').addEventListener('click', async () => {
     const log = document.getElementById('consoleLogs');
     try {
@@ -93,7 +105,7 @@ document.getElementById('pullDeckBtn').addEventListener('click', async () => {
             log.textContent += `Failed mapping structural components: ${data.error}`;
         } else {
             log.textContent += `Successfully derived structural schema maps into memory context!\nServer physical copy deleted instantly.\n`;
-            data.deck_id = id; // Store ID inside state references array map object context
+            data.deck_id = id; 
             mapLoadedDeckStructure(data);
             registerSavedDeck(data.name, id);
         }
@@ -133,8 +145,8 @@ function mapLoadedDeckStructure(deckData) {
     const cardSelect = document.getElementById('cardSelect');
     const blueprintSelect = document.getElementById('blueprintSelect');
     
-    cardSelect.innerHTML = '<option value="">-- SELECT CARD IDENTITY FROM ACTIVE CACHE --</option>';
-    blueprintSelect.innerHTML = '<option value="">-- SELECT TARGET SCHEMATIC COMPONENT --</option>';
+    cardSelect.innerHTML = '<option value="">-- Select Card ID From Cache --</option>';
+    blueprintSelect.innerHTML = '<option value="">-- Select Target Component --</option>';
     
     deckData.cards.forEach(card => {
         const opt = document.createElement('option');
@@ -150,7 +162,7 @@ function mapLoadedDeckStructure(deckData) {
 document.getElementById('cardSelect').addEventListener('change', (e) => {
     const cardId = e.target.value;
     const blueprintSelect = document.getElementById('blueprintSelect');
-    blueprintSelect.innerHTML = '<option value="">-- SELECT TARGET SCHEMATIC COMPONENT --</option>';
+    blueprintSelect.innerHTML = '<option value="">-- Select Target Component --</option>';
     
     if (!cardId) { blueprintSelect.disabled = true; return; }
     
@@ -182,7 +194,7 @@ function renderSavedDecks() {
     
     decks.forEach(d => {
         const li = document.createElement('li');
-        li.innerHTML = `<span>${d.name}</span><span style="color:var(--gray-mid); font-size:0.7rem">${d.id}</span>`;
+        li.innerHTML = `<span>${d.name}</span><span style="color:var(--gray-mid); font-size:0.75rem">${d.id}</span>`;
         li.addEventListener('click', () => {
             document.getElementById('pullDeckId').value = d.id;
             switchTab('pull');
@@ -236,6 +248,5 @@ document.getElementById('modifyForm').addEventListener('submit', async (e) => {
     }
 });
 
-// Legal Modal Visibility Switches
 function showLegalModal() { document.getElementById('legalModal').style.display = 'flex'; }
 function hideLegalModal() { document.getElementById('legalModal').style.display = 'none'; }
