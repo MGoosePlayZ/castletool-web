@@ -297,16 +297,21 @@ document.querySelectorAll('input[type="number"]').forEach(input => {
             this.value = val - 1;
         }
         
-        // Hard limits so users can't break the CLI with negative numbers
+        // Hard limits and "Auto" resets
         if (this.id === 'quantizeFlag') {
-            if (this.value < 1) this.value = 1;
             if (this.value > 256) this.value = 256;
+            if (this.value < 1) this.value = ''; // Clears to "Default"
         }
+        if (this.id === 'sizeW' || this.id === 'sizeH') {
+            if (this.value < 1) this.value = ''; // Clears to "Auto"
+        }
+        
+        // Absolute minimums for variables that break if left empty or at 0
         if (this.id === 'skipFramesFlag' && this.value < 1) {
+            this.value = 1; 
+        }
+        if (this.id === 'svgStepsFlag' && this.value < 1) {
             this.value = 1;
         }
-        if (this.id === 'sizeW' && this.value < 1) this.value = 1;
-        if (this.id === 'sizeH' && this.value < 1) this.value = 1;
-        if (this.id === 'svgStepsFlag' && this.value < 1) this.value = 1;
     });
 });
