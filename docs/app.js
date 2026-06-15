@@ -1,5 +1,5 @@
 // Hardcoded Endpoint
-const BACKEND_URL = "https://jubilant-doodle-v6745gv6vxj4hwqv7-5000.app.github.dev";
+const BACKEND_URL = "https://truck-alice-britain-argument.trycloudflare.com";
 
 let cachedDecks = JSON.parse(localStorage.getItem('castle_decks') || '{}');
 let activeDeckId = null;
