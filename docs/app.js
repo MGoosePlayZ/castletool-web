@@ -281,3 +281,32 @@ document.getElementById('modifyForm').addEventListener('submit', async (e) => {
         btn.disabled = false;
     }
 });
+// --- Custom Number Input Scroll Logic ---
+document.querySelectorAll('input[type="number"]').forEach(input => {
+    input.addEventListener('wheel', function(e) {
+        // Prevent the whole page from scrolling
+        e.preventDefault();
+        
+        // Get the current number, or default to 0 if the box is empty
+        let val = parseInt(this.value) || 0;
+        
+        // e.deltaY is negative when scrolling UP, positive when scrolling DOWN
+        if (e.deltaY < 0) {
+            this.value = val + 1;
+        } else {
+            this.value = val - 1;
+        }
+        
+        // Hard limits so users can't break the CLI with negative numbers
+        if (this.id === 'quantizeFlag') {
+            if (this.value < 1) this.value = 1;
+            if (this.value > 256) this.value = 256;
+        }
+        if (this.id === 'skipFramesFlag' && this.value < 1) {
+            this.value = 1;
+        }
+        if (this.id === 'sizeW' && this.value < 1) this.value = 1;
+        if (this.id === 'sizeH' && this.value < 1) this.value = 1;
+        if (this.id === 'svgStepsFlag' && this.value < 1) this.value = 1;
+    });
+});
