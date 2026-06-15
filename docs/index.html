@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Castle Asset Injector Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🏰 Castle Asset Injector Studio</h1>
+        
+        <div class="card setup-section">
+            <h3>🔗 Connection Settings</h3>
+            <label>Codespace API Base URL:</label>
+            <input type="text" id="backendUrl" placeholder="https://your-codespace-id-5000.app.github.dev">
+            <p class="hint">Ensure the visibility of port 5000 inside your active Codespace is set to <strong>Public</strong>.</p>
+        </div>
+
+        <div class="card auth-section">
+            <h3>🔑 Account Authorization</h3>
+            <div id="authStatus" class="status-badge disconnected">No Token Saved Globally</div>
+            <button id="loginBtn" class="btn primary">Authenticate via Castle</button>
+        </div>
+
+        <div class="card deck-section">
+            <h3>🗂️ Deck Management Workspace</h3>
+            <div class="tab-group">
+                <button class="tab-btn active" onclick="switchTab('existing')">Local Projects</button>
+                <button class="tab-btn" onclick="switchTab('new')">Create Deck</button>
+                <button class="tab-btn" onclick="switchTab('pull')">Pull Cloud Deck</button>
+            </div>
+
+            <div id="tab-existing" class="tab-content active">
+                <label>Select Active Working Directory:</label>
+                <select id="deckSelect"><option value="">-- Click Refresh Directory --</option></select>
+                <button id="refreshDecksBtn" class="btn secondary">🔄 Refresh Directory List</button>
+                
+                <div class="nested-selects mt-3">
+                    <label>Target Card Context ID:</label>
+                    <select id="cardSelect" disabled><option>-- Choose Deck First --</option></select>
+
+                    <label class="mt-2">Target Canvas Template Blueprint (.json):</label>
+                    <select id="blueprintSelect" disabled><option>-- Choose Card Context First --</option></select>
+                </div>
+            </div>
+
+            <div id="tab-new" class="tab-content">
+                <label>New Project Folder Name:</label>
+                <input type="text" id="newDeckName" placeholder="MyAwesomeCastleProject">
+                <button id="initDeckBtn" class="btn success">Initialize and Synchronize Project Structure</button>
+            </div>
+
+            <div id="tab-pull" class="tab-content">
+                <label>Target Remote Cloud Deck Hash ID ID:</label>
+                <input type="text" id="pullDeckId" placeholder="Enter Deck ID">
+                <button id="pullDeckBtn" class="btn success">Fetch Assets Down into Local Environment</button>
+            </div>
+            
+            <div class="registered-decks mt-3">
+                <h4>📌 Saved Local Workspace Decks:</h4>
+                <ul id="savedDecksList"></ul>
+            </div>
+        </div>
+
+        <div class="card run-section">
+            <h3>🛠️ Asset Parameter Configuration Target Modifiers</h3>
+            <form id="modifyForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Source Image Asset (GIF, MP4, MOV, SVG, PNG):</label>
+                        <input type="file" id="imageFile" name="image">
+                    </div>
+                    <div class="form-group">
+                        <label>Audio Sequence Target File (.mid):</label>
+                        <input type="file" id="midiFile" name="midi">
+                    </div>
+                    <div class="form-group">
+                        <label>Asset Canvas Dimensions (e.g., "64" or "64 64"):</label>
+                        <input type="text" id="sizeFlag" placeholder="Default Dimension Bounds">
+                    </div>
+                    <div class="form-group">
+                        <label>Frame Intercept Skip Step (Animations):</label>
+                        <input type="number" id="skipFramesFlag" placeholder="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Color Quantization Bit Bounds Max (1-256):</label>
+                        <input type="number" id="quantizeFlag" placeholder="No Quantization Filters">
+                    </div>
+                    <div class="form-group">
+                        <label>Vector Image Render Multiply Scale (SVG):</label>
+                        <input type="text" id="svgScaleFlag" placeholder="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label>Bezier Smooth Step Granularity (SVG):</label>
+                        <input type="number" id="svgStepsFlag" placeholder="16">
+                    </div>
+                </div>
+                
+                <div class="checkbox-group mt-3">
+                    <input type="checkbox" id="saveDeckFlag" checked>
+                    <label for="saveDeckFlag">Auto-push pipeline changes instantly to live servers after edits</label>
+                </div>
+
+                <button type="submit" id="submitRunBtn" class="btn run-btn mt-3" disabled>Execute Code Pipeline Injection Session</button>
+            </form>
+        </div>
+
+        <div class="card log-section">
+            <h3>📟 Environment Execution Console Streams</h3>
+            <pre id="consoleLogs">Ready to connect... Initialize endpoints above to verify operational logic loop.</pre>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
