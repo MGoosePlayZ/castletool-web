@@ -5,147 +5,121 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Castle Asset Injector</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+    <script src="https://cdn.jsdelivr.net/combine/npm/tone@14.7.58,npm/@magenta/music@1.23.1/es6/core.js,npm/html-midi-player@1.5.0"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="wrapper">
-        <header>
+
+    <header class="top-bar">
+        <div class="header-left">
             <h1>Castle Asset Injector</h1>
-            <p class="subtitle">Stateless asset injection workspace for blueprint context files</p>
-        </header>
+        </div>
+        <div class="header-right">
+            <div id="profileContainer" class="profile-pill logged-out" onclick="toggleProfileMenu()">
+                <span id="profileText">Log Into CLI</span>
+            </div>
+            <div id="profileMenu" class="dropdown-menu">
+                <button onclick="logout()">Log Out</button>
+                <button class="danger" onclick="clearAllData()">Delete All Data</button>
+            </div>
+        </div>
+    </header>
 
-        <main class="dashboard-grid">
-            <section class="control-column">
+    <div class="workspace">
+        
+        <aside class="left-panel">
+            <div class="panel-header">
+                <button onclick="showModal('newDeckModal')">New Deck</button>
+                <button onclick="showModal('loadDeckModal')">Load Deck</button>
+            </div>
+            <div class="file-tree-container" id="fileTree">
+                <p class="empty-state">No decks loaded. Create or load a deck to begin.</p>
+            </div>
+        </aside>
+
+        <main class="center-panel">
+            <div id="previewContainer" class="preview-box">
+                <img id="centerImagePreview" src="" style="display:none;">
+                <p id="blueprintLabel" class="blueprint-label">Select a blueprint to begin editing</p>
+            </div>
+        </main>
+
+        <aside class="right-panel">
+            <form id="modifyForm">
                 
-                <div class="bento-box">
-                    <h2><i class="mdi mdi-link-variant"></i> Connection Endpoint</h2>
-                    <div class="input-field">
-                        <input type="text" id="backendUrl" placeholder="https://your-codespace-5000.app.github.dev">
-                    </div>
-                    <span class="subtext-gray">Must point to your active public workspace port mapping address.</span>
-                </div>
-
-                <div class="bento-box">
-                    <h2><i class="mdi mdi-shield-key-outline"></i> Identity Verification</h2>
-                    <div id="authStatus" class="security-pill locked">No Token Saved Locally</div>
-                    <button id="loginBtn" class="action-trigger primary-trigger">
-                         Sync Access Session
-                    </button>
-                </div>
-
-                <div class="bento-box deck-routing-box">
-                    <h2><i class="mdi mdi-folder-navigation-outline"></i> Deck Targeting Map</h2>
+                <div class="settings-section">
+                    <h3>Image Settings</h3>
+                    <input type="file" id="imageFile" accept="image/*,video/mp4,video/quicktime">
                     
-                    <div class="tab-system">
-                        <button id="btn-tab-pull" class="tab-indicator active" onclick="switchTab('pull')">Cloud Deck ID</button>
-                        <button id="btn-tab-new" class="tab-indicator" onclick="switchTab('new')">Generate New Deck</button>
-                    </div>
-
-                    <div id="tab-pull" class="tab-panel active">
-                        <div class="input-field">
-                            <input type="text" id="pullDeckId" placeholder="Enter unique Deck ID">
+                    <div class="split-inputs mt-2">
+                        <div>
+                            <label>Width</label>
+                            <input type="number" id="sizeW" placeholder="Auto">
                         </div>
-                        <button id="pullDeckBtn" class="action-trigger outline-trigger">
-                            Load Remote Config
-                        </button>
-                    </div>
-
-                    <div id="tab-new" class="tab-panel">
-                        <div class="input-field">
-                            <input type="text" id="newDeckName" placeholder="Folder Name (Alphanumeric)">
-                        </div>
-                        <button id="initDeckBtn" class="action-trigger outline-trigger">
-                            Initialize & Baseline
-                        </button>
-                    </div>
-
-                    <div class="targeting-selectors mt-4">
-                        <div class="selector-unit">
-                            <label>Card Instance ID</label>
-                            <select id="cardSelect" disabled><option value="">Load Workspace Deck First</option></select>
-                        </div>
-                        <div class="selector-unit mt-2">
-                            <label>Target Blueprint Schematic</label>
-                            <select id="blueprintSelect" disabled><option value="">Select Card Instance ID First</option></select>
+                        <div>
+                            <label>Height</label>
+                            <input type="number" id="sizeH" placeholder="Auto">
                         </div>
                     </div>
-
-                    <div class="bookmarks-registry mt-4">
-                        <h3>Registered Local Cache References:</h3>
-                        <ul id="savedDecksList"></ul>
-                    </div>
-                </div>
-            </section>
-
-            <section class="payload-column">
-                <form id="modifyForm" class="bento-box form-box">
-                    <h2><i class="mdi mdi-tune-variant"></i> Pipeline Injection Parameters</h2>
                     
-                    <div class="fields-stack">
-                        <div class="upload-split">
-                            <div class="file-wrapper">
-                                <label>Source Asset (Image/GIF/MP4)</label>
-                                <input type="file" id="imageFile" name="image">
-                            </div>
-                            <div class="file-wrapper">
-                                <label>MIDI Audio File (.mid)</label>
-                                <input type="file" id="midiFile" name="midi">
-                            </div>
-                        </div>
+                    <div class="input-group mt-2">
+                        <label>Colors (1-256)</label>
+                        <input type="number" id="quantizeFlag" placeholder="Default">
+                    </div>
 
-                        <div class="parameter-grid">
-                            <div class="input-field">
-                                <label>Canvas Size</label>
-                                <input type="text" id="sizeFlag" placeholder="Original Size">
-                            </div>
-                            <div class="input-field">
-                                <label>Frame Intercept Index</label>
-                                <input type="number" id="skipFramesFlag" placeholder="1">
-                            </div>
-                            <div class="input-field">
-                                <label>Quantize Max Bitmaps</label>
-                                <input type="number" id="quantizeFlag" placeholder="256">
-                            </div>
-                            <div class="input-field">
-                                <label>SVG Scale Multiplier</label>
+                    <div id="videoOptions" class="dynamic-group" style="display:none;">
+                        <label>Skip Frames</label>
+                        <input type="number" id="skipFramesFlag" placeholder="1">
+                    </div>
+
+                    <div id="svgOptions" class="dynamic-group" style="display:none;">
+                        <div class="split-inputs">
+                            <div>
+                                <label>SVG Scale</label>
                                 <input type="text" id="svgScaleFlag" placeholder="1.0">
                             </div>
-                            <div class="input-field">
-                                <label>Bezier Smoothness Steps</label>
+                            <div>
+                                <label>Bezier Steps</label>
                                 <input type="number" id="svgStepsFlag" placeholder="16">
                             </div>
                         </div>
                     </div>
-
-                    <button type="submit" id="submitRunBtn" class="action-trigger compile-trigger mt-4" disabled>
-                        Execute Stateless Injection Run
-                    </button>
-                </form>
-
-                <div class="bento-box console-box">
-                    <h2><i class="mdi mdi-console-line"></i> Runtime Execution Console</h2>
-                    <pre id="consoleLogs">System Operational: Idle. Awaiting Core Architecture Connection...</pre>
                 </div>
-            </section>
-        </main>
-        
-        <footer>
-            <p>© All Rights Reserved. Secure End-to-End Utility Interface via Volatile Pipelines.</p>
-            <p class="subtext-gray"><a href="#privacy" onclick="showLegalModal()">Privacy Policy & Terms of Service</a></p>
-        </footer>
+
+                <div class="settings-section">
+                    <h3>Audio Settings</h3>
+                    <input type="file" id="midiFile" accept=".mid,.midi">
+                    
+                    <div id="midiVisualizerContainer" class="mt-2" style="display:none;">
+                        <midi-visualizer type="piano-roll" id="midiViz"></midi-visualizer>
+                    </div>
+                </div>
+
+                <button type="submit" id="submitRunBtn" class="action-btn mt-3" disabled>Apply Changes</button>
+                <div id="statusMessage" class="status-message"></div>
+            </form>
+        </aside>
+
     </div>
 
-    <div id="legalModal" class="modal-overlay">
-        <div class="modal-surface">
-            <div class="modal-header">
-                <h2>Legal Architecture Protocols</h2>
-                <button type="button" onclick="hideLegalModal()" class="close-modal"><i class="mdi mdi-close"></i></button>
+    <div id="newDeckModal" class="modal">
+        <div class="modal-content">
+            <h3>Generate New Deck</h3>
+            <input type="text" id="newDeckName" placeholder="Deck Name">
+            <div class="modal-actions">
+                <button class="secondary" onclick="hideModal('newDeckModal')">Cancel</button>
+                <button onclick="initDeck()">Create</button>
             </div>
-            <div class="modal-body">
-                <h3>1. Terms of Service</h3>
-                <p>This software utility framework provides custom interfacing pipelines interacting directly with local system configuration nodes. You retain exclusive ownership over your credentials. The infrastructure framework runs inside an independent processing scope without storing information.</p>
-                <h3>2. Privacy & Security Data Manifesto</h3>
-                <p>The processing architecture enforces an absolute <strong>Zero-Retention Policy</strong>. Personal Access Tokens (PATs) and downloaded assets are held strictly in memory or transient storage for the minimum execution runtime duration of the requested transaction. Deletion processes are called within system-level recovery blocks, completely ensuring that no credential parameters or file data are preserved on this remote server layer post-execution.</p>
+        </div>
+    </div>
+
+    <div id="loadDeckModal" class="modal">
+        <div class="modal-content">
+            <h3>Load Deck</h3>
+            <input type="text" id="loadDeckId" placeholder="Deck ID">
+            <div class="modal-actions">
+                <button class="secondary" onclick="hideModal('loadDeckModal')">Cancel</button>
+                <button onclick="pullDeck()">Load</button>
             </div>
         </div>
     </div>
