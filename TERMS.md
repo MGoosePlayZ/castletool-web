@@ -4,7 +4,7 @@
 
 ## 1. Acceptance
 
-By accessing or using CastleTool API, you agree to these Terms of Service.
+By accessing or using CastleTool, you agree to these Terms of Service.
 
 If you do not agree to these Terms, you must not use the service.
 
@@ -27,11 +27,11 @@ Users should:
 * avoid sharing tokens with third parties;
 * revoke tokens immediately if compromise is suspected.
 
-CastleTool API cannot guarantee protection against every possible attack or security vulnerability.
+CastleTool cannot guarantee protection against every possible attack or security vulnerability.
 
 ## 4. Intellectual Property
 
-Unless otherwise stated, the CastleTool website, frontend, backend software, design, documentation, and associated materials are proprietary.
+Unless otherwise stated, the Castletool website, frontend, backend software, design, documentation, and associated materials are proprietary.
 
 No permission is granted to copy, reproduce, redistribute, reverse engineer, modify, or create derivative works from the website or software without prior written permission.
 
@@ -50,7 +50,7 @@ Users may not:
 
 ## 6. No Warranty
 
-CastleTool API is provided "AS IS" and "AS AVAILABLE".
+CastleTool is provided "AS IS" and "AS AVAILABLE".
 
 No warranties, express or implied, are provided, including warranties of:
 
@@ -63,7 +63,7 @@ No warranties, express or implied, are provided, including warranties of:
 
 ## 7. Limitation of Liability
 
-To the fullest extent permitted by law, the operators of CastleTool API shall not be liable for:
+To the fullest extent permitted by law, the operators of CastleTool shall not be liable for:
 
 * loss of data;
 * corruption of decks;
@@ -89,4 +89,4 @@ These Terms shall be governed by the laws applicable in the jurisdiction in whic
 
 ## 11. Entire Agreement
 
-These Terms constitute the entire agreement between users and the operators of CastleTool API regarding use of the service.
+These Terms constitute the entire agreement between users and the operators of CastleTool regarding use of the service.
