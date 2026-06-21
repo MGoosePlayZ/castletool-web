@@ -4,13 +4,13 @@
 
 ## 1. Overview
 
-CastleTool API is designed around a privacy-first, stateless architecture.
+CastleTool is designed around a privacy-first, stateless architecture.
 
 No user accounts are required, and the service is intentionally designed to minimize the collection, storage, and retention of user information.
 
 ## 2. Information Processed
 
-To perform requested operations, CastleTool API may temporarily process:
+To perform requested operations, CastleTool may temporarily process:
 
 * Personal Access Tokens (PATs);
 * Deck IDs;
@@ -25,7 +25,7 @@ This information is processed solely for the purpose of fulfilling the user's re
 
 ## 3. Data Retention
 
-CastleTool API is designed so that user data exists only for the duration necessary to process a request.
+CastleTool is designed so that user data exists only for the duration necessary to process a request.
 
 The service does not intentionally maintain databases or persistent storage containing:
 
@@ -46,7 +46,7 @@ Personal Access Tokens are transmitted to the server only to authenticate operat
 
 Tokens are not intended to be permanently stored. They are deleted after use and are not intentionally retained after request completion.
 
-CastleTool API operators do not intentionally maintain copies of user credentials and generally cannot recover lost or previously submitted tokens.
+CastleTool operators do not intentionally maintain copies of user credentials and generally cannot recover lost or previously submitted tokens.
 
 Users are responsible for safeguarding their tokens and should revoke them immediately if they suspect a token has been compromised.
 
@@ -56,11 +56,11 @@ Images, MIDI files, and other uploaded content are processed only for the purpos
 
 Such files are intended to be temporary and are removed after processing.
 
-CastleTool API operators do not intentionally archive or retain uploaded files.
+CastleTool operators do not intentionally archive or retain uploaded files.
 
 ## 6. Information Sharing
 
-CastleTool API does not sell, rent, or trade user information.
+CastleTool does not sell, rent, or trade user information.
 
 Information may only be disclosed:
 
@@ -70,11 +70,11 @@ Information may only be disclosed:
 
 ## 7. Third-Party Services
 
-CastleTool API may rely on third-party infrastructure providers, hosting services, or network providers.
+CastleTool may rely on third-party infrastructure providers, hosting services, or network providers.
 
 Those providers may process technical information necessary to deliver the service.
 
-CastleTool API does not control the policies or practices of third-party providers.
+CastleTool does not control the policies or practices of third-party providers.
 
 ## 8. Security
 
@@ -90,4 +90,4 @@ Continued use of the service after changes become effective constitutes acceptan
 
 ## 10. Contact
 
-Questions regarding this Privacy Policy may be directed to the CastleTool API maintainers.
+Questions regarding this Privacy Policy may be directed to the CastleTool maintainers.
