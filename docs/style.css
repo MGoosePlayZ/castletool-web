@@ -174,3 +174,50 @@ input[type="file"] { font-size: 0.8rem; width: 100%; }
 /* Hide control panel on visualizer */
 midi-visualizer::part(control-panel) { display: none !important; }
 midi-visualizer { width: 100%; height: 80px; background: var(--bg-dark); border-radius: 6px; overflow: hidden; }
+
+/* Maintenance Screen Overlay */
+.maintenance-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: var(--bg-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999; /* Higher than modals */
+    text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.maintenance-content {
+    max-width: 450px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+}
+
+.maintenance-content i {
+    font-size: 3.5rem;
+    color: #ff453a; /* iOS native red accent color */
+    margin-bottom: 16px;
+    display: inline-block;
+}
+
+.maintenance-content h2 {
+    font-family: 'Basteleur', serif;
+    font-size: 1.8rem;
+    margin: 0 0 12px 0;
+    color: var(--text-main);
+}
+
+.maintenance-content p {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 0;
+}
