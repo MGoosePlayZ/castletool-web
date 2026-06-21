@@ -1,5 +1,5 @@
 // Hardcoded Endpoint
-const BACKEND_URL = "http://example.com"; // Server's shut down, I don't know why but the backend and cloudlfare tunnel just shutdown saying "Process Completed". I'll make a permanent tunnel soon...
+const BACKEND_URL = "https://api.castletools.uk";
 
 let cachedDecks = JSON.parse(localStorage.getItem('castle_decks') || '{}');
 let activeDeckId = null;
