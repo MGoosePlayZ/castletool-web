@@ -11,6 +11,14 @@
 </head>
 <body>
 
+    <div id="maintenanceOverlay" class="maintenance-screen" style="display: none;">
+        <div class="maintenance-content">
+            <i class="mdi mdi-tools"></i>
+            <h2>System Offline</h2>
+            <p>This website is under maintenance or the tunnel has reached its limit. Please come back later!</p>
+        </div>
+    </div>
+
     <header class="top-bar">
         <div class="header-left">
             <h1>Castle Asset Injector</h1>
@@ -30,8 +38,8 @@
         
         <aside class="left-panel">
             <div class="panel-header">
-                <button onclick="showModal('newDeckModal')">New Deck</button>
-                <button onclick="showModal('loadDeckModal')">Load Deck</button>
+                <button id="newDeckBtn" onclick="showModal('newDeckModal')">New Deck</button>
+                <button id="loadDeckBtn" onclick="showModal('loadDeckModal')">Load Deck</button>
             </div>
             <div class="file-tree-container" id="fileTree">
                 <p class="empty-state">No decks loaded. Create or load a deck to begin.</p>
