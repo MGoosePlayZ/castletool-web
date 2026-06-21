@@ -1,14 +1,53 @@
 // Hardcoded Endpoint
-const BACKEND_URL = "https://truck-alice-britain-argument.trycloudflare.com";
+const BACKEND_URL = "http://example.com"; // Server's shut down, I don't know why but the backend and cloudlfare tunnel just shutdown saying "Process Completed". I'll make a permanent tunnel soon...
 
 let cachedDecks = JSON.parse(localStorage.getItem('castle_decks') || '{}');
 let activeDeckId = null;
 let activeCardId = null;
 let activeBlueprint = null;
 
-// Initialize
-updateProfileState();
-renderFileTree();
+// Trigger Health Check on Webpage Startup
+checkServerHealth();
+
+async function checkServerHealth() {
+    const status = document.getElementById('statusMessage');
+    const overlay = document.getElementById('maintenanceOverlay');
+    
+    status.textContent = "Checking system connection...";
+    
+    try {
+        // Set up a 5-second timeout controller so it doesn't hang forever if Cloudflare is down
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        // We use a safe standard ping route, or fallback to checking the base API structure
+        const res = await fetch(`${BACKEND_URL}/api/auth/status`, { 
+            method: 'GET',
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        // If the server explicitly returns a response (even a 400/401 structure), the server engine is ALIVE.
+        // Cloudflare quick tunnel breaks or blockades usually yield 502, 504, or complete Network Errors.
+        if (res.status >= 500) {
+            throw new Error("Server reporting down.");
+        }
+
+        // Server is operational! Let the user inside the program.
+        status.textContent = "Connected to backend.";
+        setTimeout(() => { if(status.textContent === "Connected to backend.") status.textContent = ""; }, 3000);
+        
+        updateProfileState();
+        renderFileTree();
+
+    } catch (err) {
+        console.error("Health check failed:", err);
+        status.textContent = "Offline Mode - Server Unreachable.";
+        
+        // Show the Maintenance Overlay screen blocking workspace actions
+        overlay.style.display = 'flex';
+    }
+}
 
 // --- Auth & Profile ---
 function getToken() { return localStorage.getItem('castle_pat_token'); }
