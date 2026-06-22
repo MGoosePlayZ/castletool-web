@@ -9,6 +9,9 @@ let activeBlueprint = null;
 // Trigger Health Check on Webpage Startup
 checkServerHealth();
 
+// Load banner for important information
+loadBanner();
+
 async function checkServerHealth() {
     const status = document.getElementById('statusMessage');
     const overlay = document.getElementById('maintenanceOverlay');
@@ -46,6 +49,63 @@ async function checkServerHealth() {
         
         // Show the Maintenance Overlay screen blocking workspace actions
         overlay.style.display = 'flex';
+    }
+}
+
+// display important info
+async function loadBanner() {
+    try {
+        const res = await fetch("banner.txt");
+
+        if (!res.ok) return;
+
+        const text = (await res.text()).trim();
+
+        if (!text) return;
+
+        // First word is the type
+        const firstSpace = text.indexOf(" ");
+
+        if (firstSpace === -1) return;
+
+        const type = text.substring(0, firstSpace).toUpperCase();
+        let message = text.substring(firstSpace + 1).trim();
+
+        // Remove optional quotes
+        if (
+            message.startsWith('"') &&
+            message.endsWith('"')
+        ) {
+            message = message.slice(1, -1);
+        }
+
+        const banner = document.getElementById("siteBanner");
+        const bannerText = document.getElementById("siteBannerText");
+
+        banner.classList.remove("info", "warn", "crit");
+
+        switch (type) {
+            case "INFO":
+                banner.classList.add("info");
+                break;
+
+            case "WARN":
+                banner.classList.add("warn");
+                break;
+
+            case "CRIT":
+                banner.classList.add("crit");
+                break;
+
+            default:
+                return;
+        }
+
+        bannerText.textContent = message;
+        banner.style.display = "block";
+
+    } catch (err) {
+        // Missing banner.txt or parse error → no banner
     }
 }
 
