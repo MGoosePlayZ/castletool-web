@@ -278,9 +278,21 @@ document.getElementById('midiFile').addEventListener('change', (e) => {
 });
 
 // --- Submit Pipeline ---
+let isRequestActive = false; // Lock variable to prevent duplicate spam
+
 document.getElementById('modifyForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!activeDeckId || !activeCardId || !activeBlueprint) return;
+    
+    // Check authentication BEFORE anything else
+    if (!getToken()) {
+        showModal('authAlertModal');
+        return;
+    }
+
+    // Ignore duplicate requests
+    if (isRequestActive) return;
+    isRequestActive = true;
     
     const status = document.getElementById('statusMessage');
     const btn = document.getElementById('submitRunBtn');
@@ -305,21 +317,43 @@ document.getElementById('modifyForm').addEventListener('submit', async (e) => {
     formData.append("svg_scale", document.getElementById('svgScaleFlag').value);
     formData.append("svg_steps", document.getElementById('svgStepsFlag').value);
 
+    // Timeout requests that take longer than 3 minutes (180,000 milliseconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180000);
+
     try {
-        const res = await fetch(`${BACKEND_URL}/api/decks/modify`, { method: 'POST', body: formData });
+        const res = await fetch(`${BACKEND_URL}/api/decks/modify`, { 
+            method: 'POST', 
+            body: formData,
+            signal: controller.signal
+        });
+        
         const data = await res.json();
         
-        if (data.error) {
-            status.textContent = `Error: ${data.error}`;
+        if (!res.ok) {
+            // Handle the new verbose backend errors (413, 429, etc)
+            let errorMsg = data.error || `HTTP ${res.status}`;
+            if (data.description) errorMsg += `: ${data.description}`;
+            status.textContent = `Error [${res.status}]: ${errorMsg}`;
+            
+            // If they are unauthorized mid-session, force logout visual
+            if (res.status === 401) logout();
         } else {
             status.textContent = "Changes saved and synced successfully!";
         }
     } catch (err) {
-        status.textContent = `Error: ${err.message}`;
+        if (err.name === 'AbortError') {
+            status.textContent = "Error: Request timed out after 3 minutes.";
+        } else {
+            status.textContent = `Network Error: ${err.message}`;
+        }
     } finally {
+        clearTimeout(timeoutId);
         btn.disabled = false;
+        isRequestActive = false; // Release the lock
     }
 });
+
 // --- Custom Number Input Scroll Logic ---
 document.querySelectorAll('input[type="number"]').forEach(input => {
     input.addEventListener('wheel', function(e) {
