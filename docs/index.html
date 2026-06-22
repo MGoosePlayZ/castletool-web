@@ -132,6 +132,16 @@
             </div>
         </div>
     </div>
+    <div id="authAlertModal" class="modal">
+        <div class="modal-content">
+            <h3><i class="mdi mdi-lock" style="color: #ff453a; margin-right: 8px;"></i>Authentication Required</h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">You must be logged into the Castle CLI to perform this action. Please sign in via the top right menu.</p>
+            <div class="modal-actions">
+                <button class="secondary" onclick="hideModal('authAlertModal')">Close</button>
+                <button onclick="hideModal('authAlertModal'); loginRoutine();">Log In Now</button>
+            </div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>
