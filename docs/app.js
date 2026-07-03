@@ -1,5 +1,5 @@
 // Hardcoded Endpoint
-const BACKEND_URL = "https://api.castletools.uk";
+const BACKEND_URL = "https://castletool-proxy.juniorboy62011.workers.dev";
 
 let cachedDecks = JSON.parse(localStorage.getItem('castle_decks') || '{}');
 let activeDeckId = null;
