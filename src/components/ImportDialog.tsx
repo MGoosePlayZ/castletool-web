@@ -63,6 +63,7 @@ function Body({ deckId, cardId, entryId, file, info, layer, close }: { deckId: s
       svg_style: g("svg_style", "vector"), svg_scale: num("svg_scale", 1), steps: num("steps", 16, (s) => parseInt(s, 10)),
       color: g("color_on", false) ? ops.parseColor(g("color", "#ffffff")) : null, fps: num("fps", 4),
       want_audio: g("want_audio", true) && !info.audio_unsupported,
+      fixed_px: !!g("fixed_px", false), pixel_size: num("pixel_size", 0.1),
     } };
   };
 
@@ -148,7 +149,12 @@ function Body({ deckId, cardId, entryId, file, info, layer, close }: { deckId: s
     options.push(<div key="col">{color("color")}</div>);
   } else {
     if (vector) options.push(<Choice key="ss" label="Draw as" value={g("svg_style", "vector")} options={[["vector", "Vector"], ["bitmap", "Bitmap"]]} onChange={(v) => set("svg_style", v)} />);
-    options.push(N(bitmapLike ? "scale" : "svg_scale", "Scale", 1, { step: 0.1, minimum: 0.01, decimals: 2 }));
+    const fixedPx = bitmapLike && !!g("fixed_px", false);
+    if (!(fixedPx && !vector)) options.push(N(bitmapLike ? "scale" : "svg_scale", "Scale", 1, { step: 0.1, minimum: 0.01, decimals: 2 }));
+    if (bitmapLike) {
+      options.push(<SwitchRow key="fp" label="Fixed Pixel Size" value={fixedPx} onChange={(v) => set("fixed_px", v)} />);
+      if (fixedPx) options.push(N("pixel_size", "Pixel size (Castle units)", 0.1, { step: 0.05, minimum: 0.001, decimals: 3 }), <InfoNote key="fpn">Every pixel is drawn this wide and never resampled. Adding to a drawing that has another pixel size resizes the new image to match it.</InfoNote>);
+    }
     if (!bitmapLike) options.push(N("steps", "Curve steps", 16, { step: 1, minimum: 2, maximum: 64 }));
     if (bitmapLike) options.push(<SwitchRow key="sm" label="Smooth" value={!!vals.smooth} onChange={(v) => set("smooth", v)} />);
     if (cat === "animation" || cat === "video") options.push(N("every", "Every Nth frame", 1, { step: 1, minimum: 1 }));

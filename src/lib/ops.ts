@@ -89,9 +89,10 @@ function nextTarget(rc: CardRec, actor: any, base: any, used: boolean, name: str
 export interface MediaOpts {
   layout: "frames" | "separate"; no_scale: boolean; scale: number; smooth: boolean; every: number; quantize: number;
   svg_style: "vector" | "bitmap"; svg_scale: number; steps: number; color: number[] | null; fallback_color: number[] | null; fps: number; want_audio: boolean;
+  fixed_px: boolean; pixel_size: number;      // Fixed Pixel Size: every image pixel is `pixel_size` Castle units wide, never resampled
 }
 export const DEFAULT_MEDIA_OPTS: MediaOpts = {
-  layout: "frames", no_scale: false, scale: 1, smooth: false, every: 1, quantize: 0, svg_style: "vector", svg_scale: 1, steps: 16, color: null, fallback_color: null, fps: 4, want_audio: true,
+  layout: "frames", no_scale: false, scale: 1, smooth: false, every: 1, quantize: 0, svg_style: "vector", svg_scale: 1, steps: 16, color: null, fallback_color: null, fps: 4, want_audio: true, fixed_px: false, pixel_size: 0.1,
 };
 
 export interface MediaInfo { category: img.Cat; count: number; names: string[]; unsupported: string; has_audio: boolean; audio_unsupported: boolean; size: number; frames: number; files: File[] }
@@ -133,16 +134,22 @@ async function fixedDensityScale(files: File[], ico: Map<File, img.IcoSize>, cat
 
 async function mediaState(o: MediaOpts, cat: img.Cat, files: File[], ico: Map<File, img.IcoSize>, multi: boolean): Promise<State> {
   const bitmap = cat === "vector" && o.svg_style === "bitmap";
+  const fixedPx = !!o.fixed_px && (cat !== "vector" || bitmap) && cat !== "audio" && cat !== "font";
+  if (fixedPx && !(+o.pixel_size > 0)) throw new OpError("Pixel size must be greater than 0.");
   const st: State = {
-    scale: cat !== "vector" || bitmap ? +o.scale : 1, every: Math.max(1, Math.trunc(+o.every) || 1), quantize: Math.trunc(+o.quantize) || 0,
+    // Fixed Pixel Size keeps pictures at their own pixel size (a vector drawn as bitmap is still rasterized at its Scale)
+    scale: cat !== "vector" || bitmap ? (fixedPx && cat !== "vector" ? 1 : +o.scale) : 1, every: Math.max(1, Math.trunc(+o.every) || 1), quantize: Math.trunc(+o.quantize) || 0,
     svg_scale: +o.svg_scale * SVG_UNITS_PER_EM, steps: Math.max(2, Math.trunc(+o.steps) || 16), color: o.color, smooth: !!o.smooth, bitmap,
-    fallback_color: o.fallback_color, no_scale: !!o.no_scale && multi && (cat === "image" || cat === "vector") && (cat === "image" || bitmap), fixed_scale: null,
+    fallback_color: o.fallback_color, fixed_scale: null,
+    // several pictures of different sizes keep their own sizes, so they all end up with the same pixel size
+    no_scale: (!!o.no_scale || fixedPx) && multi && (cat === "image" || cat === "vector") && (cat === "image" || bitmap),
   };
   if (!(st.scale > 0) || !(+o.svg_scale > 0)) throw new OpError("Scale must be greater than 0.");
   if (cat === "vector" && !st.color && !st.fallback_color) {
     for (const f of files) if (needsFallbackColor(await parseSvgFile(f), st.bitmap)) { st.fallback_color = [0, 0, 0, 1]; break; }
   }
   if (st.no_scale) st.fixed_scale = await fixedDensityScale(files, ico, cat, st.scale);
+  if (fixedPx) st.fixed_scale = 1 / +o.pixel_size;       // pixels per Castle unit
   return st;
 }
 

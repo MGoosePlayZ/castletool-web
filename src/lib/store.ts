@@ -221,6 +221,18 @@ export const resetGlobalAge = () => { globalAt = 0; };
 export function snapOf(rc: CardRec): string {
   return JSON.stringify({ s: rc.scene, bg: rc.meta?.backgroundColor ?? null, img: rc.meta?.backgroundImage ?? null, f: rc.coverFileId ?? null });
 }
+/** Bytes of the scene data Castle receives for this card (the number its 10 MB upload limit applies to). Cached per edit. */
+const bytesCache = new Map<string, { rev: number; bytes: number }>();
+export function cardBytes(deckId: string, cardId: string): number {
+  const rc = state.local[deckId]?.cards[cardId];
+  if (!rc) return 0;
+  const key = deckId + "/" + cardId, hit = bytesCache.get(key);
+  if (hit && hit.rev === state.rev) return hit.bytes;
+  let bytes = 0;
+  try { bytes = new Blob([JSON.stringify({ snapshot: rc.scene?.snapshot || {} })]).size; } catch { /* leave 0 */ }
+  bytesCache.set(key, { rev: state.rev, bytes });
+  return bytes;
+}
 export const cardDirty = (rc: CardRec) => (rc.baseline ? snapOf(rc) !== rc.baseline : !!rc.dirty);
 export const deckHasUnsaved = (rec?: DeckRec) => !!rec && Object.values(rec.cards).some(cardDirty);
 
@@ -501,12 +513,13 @@ export function initNavigation() {
     if (isDesktop()) return;
     const target: Nav = (e.state && typeof e.state === "object" && "deckId" in e.state) ? e.state : { deckId: null, cardId: null, bpId: null, profile: false };
     const cur = state.nav;
-    // leaving a card (not into its blueprint) with unsaved edits → ask first
+    // leaving a card (not into its blueprint) with unsaved edits → ask first. A card with nothing to save
+    // falls straight through to the navigation below (it used to bounce between history entries before it gave in).
     if (cur.cardId && !cur.bpId && !target.cardId && askLeave) {
-      history.pushState(cur, "");                              // stay on the card
-      if (askLeave(() => { history.back(); })) return;
-      history.back();
-      return;
+      if (askLeave(() => { history.back(); })) {
+        history.pushState(cur, "");                            // stay on the card until the person answers
+        return;
+      }
     }
     navPrev = cur;
     set({ nav: target });

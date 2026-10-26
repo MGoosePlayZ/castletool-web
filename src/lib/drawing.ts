@@ -172,7 +172,7 @@ function arcPts([x1, y1]: number[], [xb, yb]: number[], [x2, y2]: number[]): num
   pts[0] = [x1, y1]; pts[n] = [x2, y2];
   return pts;
 }
-const segPts = (s: any): number[][] => {
+export const segPts = (s: any): number[][] => {
   const p = s.p || [];
   if (p.length < 4) return [];
   return s.bp && "x" in s.bp ? arcPts([p[0], p[1]], [s.bp.x, s.bp.y], [p[2], p[3]]) : [[p[0], p[1]], [p[2], p[3]]];

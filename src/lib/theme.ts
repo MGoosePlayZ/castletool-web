@@ -1,4 +1,4 @@
-export const MAJOR = "#ffffff", MINOR1 = "#888888", SEP = "#444444", BG = "#000000", DANGER = "#F87171";
+export const MAJOR = "#ffffff", MINOR1 = "#888888", SEP = "#444444", BG = "#000000", DANGER = "#F87171", WARN = "#FACC15";
 export const CARD_RATIO = 7 / 5;     // height / width (5:7 cards)
 export const APP_VERSION = "0.5.0";
 export const CASTLE_LINKS: [string, string][] = [

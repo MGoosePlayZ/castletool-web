@@ -1,13 +1,32 @@
 // Card bar (undo / redo / settings, Save) shared by the card screen and the blueprint screen, plus the card dialogs.
 import { useEffect } from "react";
 import { CI, ColorField, IconButton, NumberBox, PillButton, Swatch, TextAction, showDialog } from "./widgets";
-import { DANGER, MAJOR, MINOR1, SEP } from "@/lib/theme";
-import { useApp, undo, redo, canUndo, canRedo, cardDirty, saveCard, isSaving, editQuick, editAsync, cardOf, discardCard, toast, ensureOnline, setLeaveGuard, requestBack, back } from "@/lib/store";
+import { DANGER, MAJOR, MINOR1, SEP, WARN } from "@/lib/theme";
+import { useApp, undo, redo, canUndo, canRedo, cardBytes, cardDirty, saveCard, isSaving, editQuick, editAsync, cardOf, discardCard, toast, ensureOnline, setLeaveGuard, requestBack, back } from "@/lib/store";
 import { cardBackground, cardTempo, setCardBackground, setCardTempo } from "@/lib/ops";
 import { pickFile } from "@/lib/pick";
+import { UPLOAD_LIMIT } from "@/lib/api";
 import * as api from "@/lib/api";
 
 const SIDE = 88;
+
+/** How full the card is against Castle's 10 MB upload limit: white under 50%, yellow over 50%, red over 75%. */
+function SizeMeter({ deckId, cardId }: { deckId: string; cardId: string }) {
+  const bytes = cardBytes(deckId, cardId), frac = bytes / UPLOAD_LIMIT, pct = Math.round(frac * 100);
+  const color = frac > 0.75 ? DANGER : frac > 0.5 ? WARN : MAJOR, size = 32, stroke = 3, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  const label = `${(bytes / 1048576).toFixed(2)} MB of ${UPLOAD_LIMIT / 1048576} MB`;
+  return (
+    <div className="flex shrink-0 items-center justify-center" style={{ width: 36, height: 40 }} title={label} aria-label={label} role="img">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={SEP} strokeWidth={stroke} />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - Math.min(1, frac))} />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center font-bold leading-none" style={{ color, fontSize: pct > 99 ? 8 : 9 }}>{`${Math.min(pct, 999)}%`}</span>
+      </div>
+    </div>
+  );
+}
 
 export function CardBar({ deckId, cardId, mode, className }: { deckId: string; cardId: string; mode: "card" | "blueprint"; className?: string }) {
   useApp();
@@ -18,6 +37,7 @@ export function CardBar({ deckId, cardId, mode, className }: { deckId: string; c
         <IconButton onClick={() => (mode === "card" ? requestBack() : back())} tooltip={mode === "card" ? "Back" : "Close"}><CI name={mode === "card" ? "left_arrow" : "close"} size={22} /></IconButton>
       </div>
       <div className="flex flex-1 items-center justify-center">
+        <SizeMeter deckId={deckId} cardId={cardId} />
         <IconButton disabled={!canUndo(deckId, cardId)} tooltip="Undo" onClick={() => void undo(deckId, cardId)}><CI name="undo" size={22} /></IconButton>
         <IconButton disabled={!canRedo(deckId, cardId)} tooltip="Redo" onClick={() => void redo(deckId, cardId)}><CI name="redo" size={22} /></IconButton>
         <IconButton tooltip="Card settings" onClick={() => cardSettingsDialog(deckId, cardId)}><CI name="settings" size={22} /></IconButton>

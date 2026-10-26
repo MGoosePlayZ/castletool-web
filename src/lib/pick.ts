@@ -20,3 +20,10 @@ export function saveText(name: string, text: string) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
+export function saveBlob(name: string, blob: Blob) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}

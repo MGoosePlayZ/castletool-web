@@ -15,7 +15,8 @@ import { OpError, drawFrame, drawingInfo, frameCount, layerSummary, layersOf, d2
 import { IMAGE_EXTS, VIDEO_EXTS, VECTOR_EXTS, FONT_EXTS, AUDIO_EXTS } from "@/lib/imaging";
 import { LiveSynth, musicStats } from "@/lib/synth";
 import { audioUrls } from "@/lib/audio";
-import { pickFile } from "@/lib/pick";
+import { pickFile, saveBlob } from "@/lib/pick";
+import { exportLayer } from "@/lib/export";
 import { cn } from "@/lib/utils";
 
 const ARCHIVES = ["zip", "tar", "gz", "tgz", "bz2", "xz", "tbz2", "txz"];
@@ -120,10 +121,20 @@ function LayerRow({ layer, deckId, cardId, entryId, onPick }: { layer: any; onPi
     };
     showDialog("Rename layer", (close) => <Body close={close} />, { actions: () => <TextAction label="Save" onClick={() => (Body as any).save?.()} /> });
   };
+  const exportIt = async () => {
+    try {
+      const d2 = d2Of(ops.libraryOf(cardOf(deckId, cardId)!)[entryId]);
+      const r = await exportLayer(d2, layer.id);
+      const base = `${ops.blueprintTitle(ops.libraryOf(cardOf(deckId, cardId)!)[entryId], entryId)}-${layer.title || "Layer"}`.replace(/[\\/:*?"<>|]+/g, "_").trim() || "layer";
+      saveBlob(`${base}.png`, new Blob([r.bytes as BlobPart], { type: "image/png" }));   // an APNG is a PNG that animates, so .png opens everywhere
+      toast(r.frames > 1 ? `Exported ${r.frames} frames as APNG.` : "Exported PNG.");
+    } catch (e: any) { toast(e?.message || String(e), true); }
+  };
   return (
     <div ref={setNodeRef} className="flex items-center border-b bg-black" style={{ height: LAYER_ROW_H, borderColor: SEP, transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.7 : 1, position: "relative", zIndex: isDragging ? 5 : 0 }}>
       <div {...attributes} {...listeners} className="flex cursor-grab touch-none items-center justify-center" style={{ width: 40, height: LAYER_ROW_H }}><MI name="menu" size={22} color={MINOR1} /></div>
       <button type="button" onClick={rename} className="h-full min-w-0 flex-1 truncate text-left text-sm hover:bg-accent/40">{layer.title || "Layer"}</button>
+      <IconButton size={40} tooltip={frameCount(d2Of(ops.libraryOf(cardOf(deckId, cardId)!)[entryId])) > 1 ? "Export layer as APNG" : "Export layer as PNG"} onClick={exportIt}><CI name="download2" size={20} /></IconButton>
       <IconButton size={40} tooltip="Overwrite layer" onClick={() => onPick(layer.id)}><CI name="upload" size={20} /></IconButton>
       <IconButton size={40} tooltip="Delete layer" onClick={() => confirmDialog(`Delete "${layer.title || "Layer"}"?`, "", "Delete", () => void run((d2) => deleteLayer(d2, layer.id)))}><CI name="delete" size={20} /></IconButton>
     </div>
@@ -229,7 +240,7 @@ function Player({ music, bpm }: { music: any; bpm: number }) {
 function MusicPanel({ deckId, cardId, entryId }: P) {
   const rc = cardOf(deckId, cardId)!, bp = ops.libraryOf(rc)[entryId], music = ops.components(bp).Music, bpm = ops.cardTempo(rc);
   const upload = async () => {
-    const f = await pickFile(["mid", "midi"]);
+    const f = await pickFile(["mid", "midi", "smf"]);
     if (!f) return;
     const res = await editAsync(deckId, cardId, "Importing MIDI", (task, c, rec) => ops.importMidi({ rc: c, rec, entryId }, f, task));
     if (res) toast("MIDI imported.");

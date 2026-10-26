@@ -41,8 +41,19 @@ export function drumInstrument() {
 }
 
 interface Midi { header: { ticksPerBeat?: number }; tracks: any[][] }
+/** `song.mid.smf` is a normal MIDI file: read it as plain .mid first, and only if that fails look for the `MThd`
+ *  header further in (a RIFF/RMID wrapper, say) and read it as a Standard MIDI File from there. */
+function parseMidiBytes(bytes: Uint8Array): any {
+  try { return parseMidi(bytes); }
+  catch (first) {
+    let at = -1;
+    for (let i = 1; i + 4 <= bytes.length && at < 0; i++) if (bytes[i] === 0x4d && bytes[i + 1] === 0x54 && bytes[i + 2] === 0x68 && bytes[i + 3] === 0x64) at = i;
+    if (at < 0) throw first;
+    return parseMidi(bytes.subarray(at));
+  }
+}
 export const readMidi = (bytes: Uint8Array): Midi => {
-  const m: any = parseMidi(bytes);
+  const m: any = parseMidiBytes(bytes);
   if (!m.header.ticksPerBeat) throw new Error("SMPTE-timed MIDI files aren't supported.");
   return m;
 };
