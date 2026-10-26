@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face { font-family: Basteleur; src: url(/fonts/Basteleur-Bold.otf); }
+@font-face { font-family: CastleIcons; src: url(/fonts/CastleIcon.ttf); }
+@font-face { font-family: DMSans; font-weight: 400; src: url(/fonts/DMSans-Regular.ttf); }
+@font-face { font-family: DMSans; font-weight: 500; src: url(/fonts/DMSans-Medium.ttf); }
+@font-face { font-family: DMSans; font-weight: 700; src: url(/fonts/DMSans-Bold.ttf); }
+@font-face { font-family: MSOutlined; src: url(/fonts/MaterialSymbols-W200.ttf); }
+@font-face { font-family: MSFilled; src: url(/fonts/MaterialSymbols-W200-Filled.ttf); }
+@font-face { font-family: Bore; src: url(/fonts/Bore.ttf); }
+@font-face { font-family: CourierPrime; src: url(/fonts/CourierPrime.ttf); }
+@font-face { font-family: Glacier; src: url(/fonts/Glacier.ttf); }
+@font-face { font-family: HelicoCentrica; src: url(/fonts/HelicoCentrica.ttf); }
+@font-face { font-family: Piazzolla; src: url(/fonts/Piazzolla.ttf); }
+@font-face { font-family: Synco; src: url(/fonts/Synco.ttf); }
+@font-face { font-family: Tektur; src: url(/fonts/Tektur.ttf); }
+@font-face { font-family: YatraOne; src: url(/fonts/YatraOne.ttf); }
+
+@layer base {
+  :root {
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 0%;
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 0%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 7%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 7%;
+    --muted-foreground: 0 0% 53%;
+    --accent: 0 0% 10%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 91% 71%;
+    --destructive-foreground: 0 0% 0%;
+    --border: 0 0% 27%;
+    --input: 0 0% 27%;
+    --ring: 0 0% 100%;
+  }
+  * { @apply border-border; -webkit-tap-highlight-color: transparent; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background text-foreground font-body;
+    font-size: 14px;
+    overscroll-behavior: none;
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+}
