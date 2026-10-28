@@ -7,7 +7,8 @@ import { svgDims, svgToPathData, vectorDrawing, rasterizeSvg, needsFallbackColor
 import { gatherMedia } from "./archive";
 import { loadFont, vectorFontFrames, renderFontBitmap, fontDrawing, fontCodepoints, fontHasGlyph, glyphToPathData } from "./fonts";
 import { readMidi, buildMusic, midiBpm } from "./midi";
-import { attachAudio, stripAudioRules, canEncodeMp3 } from "./audio";
+import { attachAudio, attachPcm, pcmToMp3, stripAudioRules, canEncodeMp3 } from "./audio";
+import { renderMusic } from "./synth";
 import { Prog, NOOP } from "./tasks";
 import { getToken } from "./api";
 import { log } from "./store";
@@ -411,6 +412,34 @@ export async function importAudio(ctx: Ctx, info: MediaInfo, prog: Prog): Promis
   }
   if (!written.length) throw new OpError("Nothing was added (see log).");
   return written;
+}
+
+// ── Music → Sound / MP3 ────────────────────────────────────────────────
+export const hasMusic = (bp: any) => !!components(bp).Music?.song?.tracks?.length;
+
+/** The blueprint's Music rendered to one full-length MP3 (download). */
+export function exportMusicMp3(rc: CardRec, entryId: string): Blob {
+  const music = components(libraryOf(rc)[entryId]).Music;
+  if (!music) throw new OpError("This blueprint has no music.");
+  const pcm = renderMusic(music, cardTempo(rc));
+  if (!pcm) throw new OpError("This music has no notes to render.");
+  return pcmToMp3(pcm);
+}
+
+/** Render Music → MP3 → upload as the blueprint's sound (replacing any sound rule), then delete the Music component. */
+export async function musicToSound(ctx: Ctx, prog: Prog): Promise<boolean> {
+  if (!getToken()) throw new OpError("Sign in first: sound is uploaded to Castle.");
+  const actor = libraryOf(ctx.rc)[ctx.entryId], music = components(actor).Music;
+  if (!music) throw new OpError("This blueprint has no music.");
+  prog.say("Rendering music", 0);
+  const pcm = renderMusic(music, cardTempo(ctx.rc));
+  if (!pcm) throw new OpError("This music has no notes to render.");
+  log(`Music rendered: ${(pcm.length / 44100).toFixed(1)}s`);
+  const res = await attachPcm(actor, pcm, "music", prog.sub(0.1, 1), (m) => log(m));
+  if (!res.ok) throw new OpError(`Sound upload failed: ${res.error}`);
+  delete ensureComponents(actor).Music;
+  log("Music replaced by sound.");
+  return true;
 }
 
 // ── card settings ──────────────────────────────────────────────────────

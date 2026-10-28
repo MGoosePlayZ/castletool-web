@@ -54,8 +54,13 @@ export async function splitAudioMp3(file: File, isVideo: boolean, prog: Prog = N
   let buf: AudioBuffer;
   try { buf = await decode(file); }
   catch { throw new OpError(already ? "Couldn't read that MP3." : "Couldn't read the sound. Does the file have a sound track?"); }
-  const [l, r] = await resample44k(buf), seg = Math.floor(AUDIO_SEGMENT_SECONDS * 44100), stem = isVideo ? "audio" : stemOf(file.name);
-  const n = Math.max(1, Math.ceil(l.length / seg)), parts: Part[] = [];
+  const [l, r] = await resample44k(buf);
+  return encodeSegments(l, r, isVideo ? "audio" : stemOf(file.name), prog);
+}
+
+/** Split 44.1 kHz stereo PCM into MP3 parts of < 30 s. */
+async function encodeSegments(l: Int16Array, r: Int16Array, stem: string, prog: Prog): Promise<Part[]> {
+  const seg = Math.floor(AUDIO_SEGMENT_SECONDS * 44100), n = Math.max(1, Math.ceil(l.length / seg)), parts: Part[] = [];
   for (let i = 0; i < n; i++) {
     prog.step(i, n, `Encoding segment ${i + 1}/${n}`);
     parts.push({ blob: encodeMp3(l.subarray(i * seg, (i + 1) * seg), r.subarray(i * seg, (i + 1) * seg)), name: n === 1 ? `${stem}.mp3` : `${stem}_part${String(i + 1).padStart(3, "0")}.mp3` });
@@ -63,6 +68,10 @@ export async function splitAudioMp3(file: File, isVideo: boolean, prog: Prog = N
   }
   return parts;
 }
+const floatToI16 = (f: Float32Array) => { const o = new Int16Array(f.length); for (let i = 0; i < f.length; i++) o[i] = Math.max(-32768, Math.min(32767, Math.round(f[i] * 32767))); return o; };
+
+/** Mono 44.1 kHz floats (e.g. rendered Music) → one full-length MP3 (no 30 s limit). */
+export function pcmToMp3(pcm: Float32Array): Blob { const i16 = floatToI16(pcm); return encodeMp3(i16, i16); }
 
 // ── rules ──────────────────────────────────────────────────────────────
 const playSound = (uploadUrl: string) => ({
@@ -96,21 +105,37 @@ export function audioUrls(bp: any): string[] {
   return urls;
 }
 
+async function uploadParts(actor: any, parts: Part[], up: Prog, log: (m: string) => void) {
+  const urls: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    up.step(i, parts.length, `Uploading segment ${i + 1}/${parts.length}`);
+    urls.push((await api.uploadAudio(parts[i].blob, parts[i].name)).url);
+  }
+  addOrReplaceAudioRule(actor, urls);
+  log(urls.length > 1 ? `Audio added: ${urls.length} parts (each under ${AUDIO_CHUNK_SECONDS}s), played back to back` : `Audio added: ${urls[0]}`);
+}
+const failure = (e: any, log: (m: string) => void) => {
+  if (e?.name === "Cancelled") throw e;
+  log(`error: Audio upload failed: ${e?.message || e}`);
+  return { ok: false, error: String(e?.message || e) };
+};
+
 /** Upload `src`'s sound and add a play-on-create loop rule to `actor`. Returns false (actor untouched) on failure. */
 export async function attachAudio(actor: any, src: File, isVideo: boolean, prog: Prog, log: (m: string) => void): Promise<{ ok: boolean; error?: string }> {
   try {
     prog.say(isVideo ? "Extracting audio" : `Converting ${src.name}`, 0);
-    const parts = await splitAudioMp3(src, isVideo, prog.sub(0, 0.5)), urls: string[] = [], up = prog.sub(0.5, 1);
-    for (let i = 0; i < parts.length; i++) {
-      up.step(i, parts.length, `Uploading segment ${i + 1}/${parts.length}`);
-      urls.push((await api.uploadAudio(parts[i].blob, parts[i].name)).url);
-    }
-    addOrReplaceAudioRule(actor, urls);
-    log(urls.length > 1 ? `Audio added: ${urls.length} parts (each under ${AUDIO_CHUNK_SECONDS}s), played back to back` : `Audio added: ${urls[0]}`);
+    const parts = await splitAudioMp3(src, isVideo, prog.sub(0, 0.5));
+    await uploadParts(actor, parts, prog.sub(0.5, 1), log);
     return { ok: true };
-  } catch (e: any) {
-    if (e?.name === "Cancelled") throw e;
-    log(`error: Audio upload failed: ${e?.message || e}`);
-    return { ok: false, error: String(e?.message || e) };
-  }
+  } catch (e: any) { return failure(e, log); }
+}
+
+/** Same as attachAudio, for already-rendered mono 44.1 kHz floats (Music → Sound). */
+export async function attachPcm(actor: any, pcm: Float32Array, stem: string, prog: Prog, log: (m: string) => void): Promise<{ ok: boolean; error?: string }> {
+  try {
+    prog.say("Encoding sound", 0);
+    const i16 = floatToI16(pcm), parts = await encodeSegments(i16, i16, stem, prog.sub(0, 0.5));
+    await uploadParts(actor, parts, prog.sub(0.5, 1), log);
+    return { ok: true };
+  } catch (e: any) { return failure(e, log); }
 }

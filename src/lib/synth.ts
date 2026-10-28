@@ -139,6 +139,30 @@ export function noteBuffer(voice: any, key: number, sr: number, seed = 1337): Fl
   return sig;
 }
 
+/** Whole song mixed offline with the same voices, velocity scaling and soft limiter as LiveSynth.
+ *  Mono floats in [-1, 1] at `sr`, or null when nothing is audible. */
+export function renderMusic(music: any, bpm: number, sr = 44100): Float32Array | null {
+  const { voices } = voicesFromMusic(music);
+  const notes = collectNotes(music, bpm).filter((n) => n.track < voices.length && !voices[n.track].muted);
+  if (!notes.length) return null;
+  const bufs = new Map<string, Float32Array>();
+  const bufOf = (n: NoteEv) => {
+    const k = n.track + ":" + n.key;
+    let b = bufs.get(k);
+    if (!b) { b = noteBuffer(voices[n.track], n.key, sr); bufs.set(k, b); }
+    return b;
+  };
+  let end = 0;
+  for (const n of notes) end = Math.max(end, Math.round(n.t * sr) + bufOf(n).length);
+  const mix = new Float32Array(end + Math.round(TAIL_SECONDS * sr));
+  for (const n of notes) {
+    const b = bufOf(n), at = Math.round(n.t * sr), g = n.vel / 127;
+    for (let i = 0; i < b.length; i++) mix[at + i] += b[i] * g;
+  }
+  for (let i = 0; i < mix.length; i++) mix[i] = Math.tanh(mix[i] * 0.9);
+  return mix;
+}
+
 /** Plays the song through Web Audio, scheduling notes just ahead of the playhead. */
 export class LiveSynth {
   warnings: string[];

@@ -245,6 +245,27 @@ function MusicPanel({ deckId, cardId, entryId }: P) {
     const res = await editAsync(deckId, cardId, "Importing MIDI", (task, c, rec) => ops.importMidi({ rc: c, rec, entryId }, f, task));
     if (res) toast("MIDI imported.");
   };
+  const download = () => {
+    try {
+      const base = ((bp.title || "music") + "-music").replace(/[\\/:*?"<>|]+/g, "_").trim() || "music";
+      saveBlob(`${base}.mp3`, ops.exportMusicMp3(rc, entryId));
+      toast("Saved MP3.");
+    } catch (e: any) { toast(e?.message || String(e), true); }
+  };
+  const toSound = async () => {
+    if (!(await ensureOnline())) return;
+    const res = await editAsync(deckId, cardId, "Converting music", (task, c, rec) => ops.musicToSound({ rc: c, rec, entryId }, task));
+    if (res) toast("Music converted to sound.");
+  };
+  const askToSound = () => {
+    const hasSound = audioUrls(bp).length > 0;
+    showDialog("Convert Music to Sound?", () => (
+      <div className="flex flex-col gap-2.5 text-sm" style={{ color: MINOR1 }}>
+        <p>The music is rendered to an MP3 and uploaded to Castle as this blueprint's sound. The music data is deleted in favor of the sound data, so it can't be edited or played as music afterwards.</p>
+        {hasSound && <p>This blueprint already has a sound uploaded. It will be overwritten.</p>}
+      </div>
+    ), { actions: (close) => <TextAction label="Convert" onClick={() => { close(); void toSound(); }} /> });
+  };
   const st = music ? musicStats(music, bpm) : null;
   return (
     <div className="flex flex-col gap-2">
@@ -254,6 +275,12 @@ function MusicPanel({ deckId, cardId, entryId }: P) {
         <InfoNote>Non-tonal samples aren't implemented</InfoNote>
       </> : <div className="flex h-[120px] items-center justify-center"><CI name="music" size={30} color={MINOR1} /></div>}
       <div className="mt-3.5 flex"><PillButton label="Upload" filled icon={<CI name="upload" size={18} color={BG} />} onClick={() => void upload()} /></div>
+      {music && ops.hasMusic(bp) && (
+        <div className="flex flex-wrap gap-2">
+          <PillButton label="Download MP3" icon={<CI name="download2" size={18} />} onClick={download} />
+          <PillButton label="Music to Sound" onClick={askToSound} />
+        </div>
+      )}
       <LogBox />
     </div>
   );
