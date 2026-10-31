@@ -67,9 +67,12 @@ export function setTextProps(bp: any, props: Record<string, any>) {
 
 // ── layers ─────────────────────────────────────────────────────────────
 export const drawingOf = (bp: any) => d2Of(bp);
-function putDrawing(actor: any, d2: any, layer: string | null) {
+async function putDrawing(actor: any, d2: any, layer: string | null) {
   const comps = actor.actorBlueprint.components;
-  return applyDrawing(comps.Drawing2, d2, layer).then((r) => { comps.Drawing2 = r; });
+  comps.Drawing2 = await applyDrawing(comps.Drawing2, d2, layer);
+  // Every layer of a drawing shares one frame counter: a shorter layer is empty past its own last frame.
+  const own = layersOf(d2)[0]?.frames?.length || 0, total = frameCount(comps.Drawing2);
+  if (layer !== null && own > 1 && own < total) log(`note: this layer has ${own} frames but the drawing has ${total}, so frames ${own + 1}-${total} are empty on this layer.`);
 }
 
 // ── forking extra actors ───────────────────────────────────────────────
@@ -167,7 +170,11 @@ async function renderVisual(f: File, cat: img.Cat, st: State, ico: img.IcoSize |
   }
   const [w, h] = img.scaledSize(await img.nativeSize(f, cat, ico), st.scale), loadEnd = st.quantize ? 0.8 : 1;
   let r: { frames: string[]; fps: number };
-  if (cat === "video") r = await img.extractVideoFrames(f, w, h, st.every, st.smooth, prog.sub(0, loadEnd));
+  if (cat === "video") {
+    const v = await img.extractVideoFrames(f, w, h, st.every, st.smooth, prog.sub(0, loadEnd));
+    if (v.repeated) log(`warning: ${v.repeated} frame(s) couldn't be read from the video; the previous frame is used instead.`);
+    r = v;
+  }
   else {
     r = await img.loadImageFrames(f, w, h, ico, st.smooth, prog.sub(0, loadEnd));
     if (st.every > 1) { r = { frames: r.frames.filter((_, i) => i % st.every === 0), fps: r.fps / st.every }; }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { CI, MI, Minor, PillButton, Spinner, Swatch, confirmDialog, showDialog } from "@/components/widgets";
 import { Input } from "@/components/ui/input";
 import { MAJOR, MINOR1, SEP, fmtDate, timestamp, validHex } from "@/lib/theme";
-import { TABS, useApp, setSetting, refreshProfile, refreshGlobal, openDeck, deleteDeck, deckHasUnsaved, cloneRef, toast, cancelAllTasks, get, signedIn } from "@/lib/store";
+import { TABS, useApp, setSetting, refreshProfile, refreshGlobal, loadMoreGlobal, openDeck, deleteDeck, deckHasUnsaved, cloneRef, toast, cancelAllTasks, get, signedIn } from "@/lib/store";
 
 interface DeckItem { deckId: string; title: string; caption: string; visibility: string; lastModified: any; playCount: number; bg: string; cover: string; local: boolean }
 const coverOf = (c: any) => { const i = c?.backgroundImage; return i && typeof i === "object" ? i.smallUrl || i.url || "" : ""; };
@@ -67,6 +67,13 @@ export function HomeBody({ selectedDeckId }: { selectedDeckId?: string | null })
   const app = useApp(), [busy, setBusy] = useState(false), scroller = useRef<HTMLDivElement>(null), pull = useRef<{ y: number; dist: number } | null>(null);
   useEffect(() => { void refreshGlobal(); }, []);
   const items = tabDecks(app.tab), signed = signedIn();
+  // Pages of Castle decks load as the list nears its end (also when a tab's few decks don't fill the screen).
+  const canLoadMore = signed && app.tab !== "LOCAL" && app.globalMore && !app.globalLoading;
+  const maybeMore = () => {
+    const el = scroller.current;
+    if (canLoadMore && el && el.scrollHeight - el.scrollTop - el.clientHeight < 320) void loadMoreGlobal();
+  };
+  useEffect(maybeMore, [canLoadMore, items.length, app.tab]);
   const refresh = async () => {
     if (busy) return;
     setBusy(true);
@@ -83,11 +90,12 @@ export function HomeBody({ selectedDeckId }: { selectedDeckId?: string | null })
         })}
       </div>
       {busy && <div className="flex h-9 shrink-0 items-center justify-center"><Spinner size={20} /></div>}
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto"
+      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto" onScroll={maybeMore}
         onTouchStart={(e) => { if ((scroller.current?.scrollTop || 0) <= 0) pull.current = { y: e.touches[0].clientY, dist: 0 }; }}
         onTouchMove={(e) => { const p = pull.current; if (!p) return; p.dist = e.touches[0].clientY - p.y; if (p.dist >= 80) { pull.current = null; void refresh(); } }}
         onTouchEnd={() => { pull.current = null; }}>
-        {items.length ? <>{items.map((d) => <DeckRow key={d.deckId} d={d} selected={selectedDeckId === d.deckId} onOpen={() => void openDeck(d.deckId)} />)}<div style={{ height: 2 }} /></>
+        {items.length ? <>{items.map((d) => <DeckRow key={d.deckId} d={d} selected={selectedDeckId === d.deckId} onOpen={() => void openDeck(d.deckId)} />)}
+          {app.globalLoading && app.tab !== "LOCAL" && <div className="flex h-9 items-center justify-center"><Spinner size={20} /></div>}<div style={{ height: 2 }} /></>
           : <div className="flex h-[200px] items-center justify-center"><Minor size={13}>{signed ? "No decks" : "You are not signed in"}</Minor></div>}
       </div>
     </div>

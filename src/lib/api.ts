@@ -117,7 +117,8 @@ export async function getDeck(deckId: string) {
   }
 }
 
-export async function decksForUser(userId: string, limit = 100) {
+/** The signed-in user's most recently edited decks (`limit` newest first; Castle has no offset, so more decks = a bigger limit). */
+export async function decksForUser(userId: string, limit = 30) {
   const d = await gql(`query($userId: ID!, $limit: Int) { decksForUser(userId: $userId, limit: $limit, filter: recent_edited) {
     deckId title visibility caption lastModified playCount playTime
     initialCard { cardId title backgroundColor backgroundImage { url smallUrl } }

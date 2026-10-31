@@ -10,7 +10,7 @@ import { OpError } from "./drawing";
 /** UI hooks the store calls (registered by the dialogs module). */
 export const ui: { deckDeleted?: () => void } = {};
 
-export const GLOBAL_LIMIT = 100;
+export const GLOBAL_PAGE = 30;          // decks fetched per page of the deck list
 export const GLOBAL_MAX_AGE = 120_000;
 export const LOG_LEVELS: [number, string][] = [[0, "Errors only"], [1, "Normal"], [2, "Verbose"]];
 export const TABS = ["RECENT", "PUBLIC", "UNLISTED", "PRIVATE", "LOCAL", "GLOBAL"];
@@ -26,6 +26,9 @@ interface State {
   local: Record<string, DeckRec>;
   loaded: boolean;
   globalDecks: any[];
+  globalLimit: number;       // how many decks the last list request asked for
+  globalMore: boolean;       // Castle may have more decks than are loaded
+  globalLoading: boolean;    // a "load more" request is running
   tab: string;
   devMode: boolean;
   logLevel: number;
@@ -49,6 +52,9 @@ let state: State = {
   local: {},
   loaded: false,
   globalDecks: cachedGlobal,
+  globalLimit: Math.max(GLOBAL_PAGE, Math.ceil(cachedGlobal.length / GLOBAL_PAGE) * GLOBAL_PAGE),
+  globalMore: cachedGlobal.length >= GLOBAL_PAGE,
+  globalLoading: false,
   tab: settings.tab || "RECENT",
   devMode: !!settings.dev_mode,
   logLevel: settings.log_level ?? 1,
@@ -147,7 +153,7 @@ function persistUser() {
 function clearSession() {
   api.setToken(null);
   try { localStorage.removeItem("ctw.avatar"); localStorage.removeItem("ctw.global"); } catch { /* ignore */ }
-  set({ token: null, user: null, avatarUrl: null, globalDecks: [], online: true });
+  set({ token: null, user: null, avatarUrl: null, globalDecks: [], globalLimit: GLOBAL_PAGE, globalMore: false, globalLoading: false, online: true });
   persistUser();
   globalAt = 0;
 }
@@ -199,20 +205,48 @@ export async function signInPassword(username: string, password: string): Promis
 export function signOut() { clearSession(); nav({ deckId: null, cardId: null, bpId: null, profile: false }, { replace: true }); }
 
 let globalAt = 0;
+function saveGlobal(decks: any[]) {
+  try { localStorage.setItem("ctw.global", JSON.stringify(decks)); } catch { /* ignore */ }
+}
+/** Reloads the deck list, keeping as many decks as are already loaded (so a refresh never shortens the list). */
 export async function refreshGlobal(force = false): Promise<boolean> {
   if (!api.getToken() || !state.user?.userId) return false;
+  if (state.globalLoading) return false;
   if (!force && globalAt && Date.now() - globalAt < GLOBAL_MAX_AGE) return false;
   globalAt = Date.now();
+  const limit = state.globalLimit;
   try {
-    const decks = await api.decksForUser(state.user.userId, GLOBAL_LIMIT);
-    set({ online: true, globalDecks: decks });
-    try { localStorage.setItem("ctw.global", JSON.stringify(decks)); } catch { /* ignore */ }
+    const decks = await api.decksForUser(state.user.userId, limit);
+    set({ online: true, globalDecks: decks, globalMore: decks.length >= limit });
+    saveGlobal(decks);
     log(`Deck list refreshed: ${decks.length} decks`, 2);
     return true;
   } catch (e) {
     if (e instanceof api.OfflineError) set({ online: false });
     else log(`error: decks: ${errorMessage(e)}`);
     return false;
+  }
+}
+
+let globalFailAt = 0;
+/** Loads the next page of the deck list (called when the list is scrolled to its end). */
+export async function loadMoreGlobal(): Promise<void> {
+  if (!api.getToken() || !state.user?.userId || state.globalLoading || !state.globalMore) return;
+  if (Date.now() - globalFailAt < 8000) return;                       // a failed page waits a few seconds before the next try
+  const have = state.globalDecks.length, limit = state.globalLimit + GLOBAL_PAGE;
+  set({ globalLoading: true });
+  try {
+    const decks = await api.decksForUser(state.user.userId, limit);
+    // no growth means Castle has nothing more to give (or caps the list), so stop asking
+    set({ online: true, globalDecks: decks, globalLimit: limit, globalMore: decks.length >= limit && decks.length > have });
+    saveGlobal(decks);
+    log(`Deck list: ${decks.length} decks loaded`, 2);
+  } catch (e) {
+    globalFailAt = Date.now();
+    if (e instanceof api.OfflineError) { set({ online: false }); toast("No Wi-Fi.", true); }
+    else log(`error: decks: ${errorMessage(e)}`);
+  } finally {
+    set({ globalLoading: false });
   }
 }
 export const resetGlobalAge = () => { globalAt = 0; };
@@ -403,7 +437,7 @@ async function deckWasDeleted(deckId: string) {
   log(`Deck ${deckId} is gone from Castle; removing the local copy`);
   const globalDecks = state.globalDecks.filter((d) => d.deckId !== deckId);
   set({ globalDecks });
-  try { localStorage.setItem("ctw.global", JSON.stringify(globalDecks)); } catch { /* ignore */ }
+  saveGlobal(globalDecks);
   if (state.local[deckId]) await deleteDeck(deckId);
   ui.deckDeleted?.();
 }

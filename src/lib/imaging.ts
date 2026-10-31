@@ -159,15 +159,64 @@ async function animatedFrames(f: File, w: number, h: number, smooth: boolean, pr
 }
 
 // ── video ──────────────────────────────────────────────────────────────
+// The <video> sits in the page (1 px, invisible): browsers don't always decode and paint frames of a detached video,
+// and then drawImage() returns an empty picture.
 export async function openVideo(f: Blob): Promise<HTMLVideoElement> {
   const v = document.createElement("video");
   v.muted = true; v.preload = "auto"; v.playsInline = true;
+  v.setAttribute("aria-hidden", "true");
+  v.style.cssText = "position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1";
   (v as any)._url = URL.createObjectURL(f);
   v.src = (v as any)._url;
-  await new Promise<void>((res, rej) => { v.onloadeddata = () => res(); v.onerror = () => rej(new OpError("This browser can't read that video.")); });
+  document.body.appendChild(v);
+  try {
+    await new Promise<void>((res, rej) => { v.onloadeddata = () => res(); v.onerror = () => rej(new OpError("This browser can't read that video.")); });
+    if (!v.videoWidth || !v.videoHeight) throw new OpError("This browser can't show that video's picture. Try another browser, or convert the video to H.264 (.mp4).");
+  } catch (e) { releaseVideo(v); throw e; }
   return v;
 }
-export const releaseVideo = (v: HTMLVideoElement) => { try { URL.revokeObjectURL((v as any)._url); } catch { /* ignore */ } v.removeAttribute("src"); v.load(); };
+export const releaseVideo = (v: HTMLVideoElement) => { try { URL.revokeObjectURL((v as any)._url); } catch { /* ignore */ } v.removeAttribute("src"); v.load(); v.remove(); };
+
+/** Seek to `t` seconds and resolve once that frame is actually ready to draw (`seeked` alone can fire a moment too early). */
+async function seekTo(v: HTMLVideoElement, t: number): Promise<void> {
+  t = Math.max(0, t);
+  const rvfc = (v as any).requestVideoFrameCallback?.bind(v);
+  await new Promise<void>((res) => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; clearTimeout(timer); v.removeEventListener("seeked", onSeeked); res(); };
+    const onSeeked = () => { if (rvfc) { rvfc(finish); setTimeout(finish, 250); } else finish(); };   // the timeout covers browsers that never call back
+    const timer = window.setTimeout(finish, 4000);                                                   // a seek that never reports back
+    if (Math.abs(v.currentTime - t) < 1e-4 && v.readyState >= 2) { finish(); return; }              // already there: no `seeked` will come
+    v.addEventListener("seeked", onSeeked);
+    v.currentTime = t;
+  });
+}
+
+const probe = (() => { let c: HTMLCanvasElement | null = null; return () => (c ||= makeCanvas(8, 8)); })();
+/** True when the video element has no picture to give: drawing it leaves a fully transparent 8x8 sample. */
+function videoIsBlank(v: HTMLVideoElement): boolean {
+  const c = probe(), x = c.getContext("2d", { willReadFrequently: true })!;
+  x.clearRect(0, 0, 8, 8);
+  x.drawImage(v, 0, 0, 8, 8);
+  const d = x.getImageData(0, 0, 8, 8).data;
+  for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return false;
+  return true;
+}
+/** Seek to `t` and wait until the frame can be drawn; retries (a little longer each time) while the browser hands back an empty picture. */
+async function settleFrame(v: HTMLVideoElement, t: number): Promise<boolean> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 40 * attempt));
+    await seekTo(v, attempt >= 3 ? t + 0.0005 * attempt : t);          // a nudge when the same seek keeps failing
+    if (v.readyState >= 2 && !videoIsBlank(v)) return true;
+  }
+  return false;
+}
+async function grabFrame(v: HTMLVideoElement, t: number, x: CanvasRenderingContext2D, w: number, h: number): Promise<boolean> {
+  if (!(await settleFrame(v, t))) return false;
+  x.clearRect(0, 0, w, h);
+  x.drawImage(v, 0, 0, w, h);
+  return true;
+}
 
 const COMMON_FPS = [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60];
 async function detectFps(v: HTMLVideoElement): Promise<number> {
@@ -193,24 +242,29 @@ async function detectFps(v: HTMLVideoElement): Promise<number> {
   return Math.abs(near - fps) / near < 0.06 ? near : Math.round(fps * 100) / 100;
 }
 
-export async function extractVideoFrames(f: File, w: number, h: number, every = 1, smooth = false, prog: Prog = NOOP): Promise<{ frames: string[]; fps: number }> {
+export async function extractVideoFrames(f: File, w: number, h: number, every = 1, smooth = false, prog: Prog = NOOP): Promise<{ frames: string[]; fps: number; repeated: number }> {
   const v = await openVideo(f);
   try {
     const fps = await detectFps(v), dur = v.duration, total = Math.max(1, Math.floor(dur * fps)), picks: number[] = [];
     for (let i = 0; i < total; i += every) picks.push(i);
     const frames: string[] = [];
+    let repeated = 0, lead = 0;                                       // lead: frames at the very start that couldn't be read yet
     const cv = makeCanvas(w, h), x = cv.getContext("2d")!;
     x.imageSmoothingEnabled = smooth;
     for (let k = 0; k < picks.length; k++) {
       prog.step(k, picks.length, `Extracting frame ${k + 1}/${picks.length}`);
       const t = Math.min(dur - 0.001, (picks[k] + 0.5) / fps);
-      await new Promise<void>((res) => { v.onseeked = () => res(); v.currentTime = Math.max(0, t); });
-      x.clearRect(0, 0, w, h);
-      x.drawImage(v, 0, 0, w, h);
-      frames.push(await canvasPng(cv));
+      if (await grabFrame(v, t, x, w, h)) {
+        const png = await canvasPng(cv);
+        for (; lead > 0; lead--) frames.push(png);                    // leading gaps take the first picture that did come out
+        frames.push(png);
+      } else {
+        repeated++;                                                   // never leave an empty frame inside a clip: repeat the last good one
+        if (frames.length) frames.push(frames[frames.length - 1]); else lead++;
+      }
     }
-    if (!frames.length) throw new OpError("No frames came out of that video. Is it a valid video?");
-    return { frames, fps: fps / every };
+    if (!frames.length) throw new OpError("This browser couldn't draw any picture from that video. Try another browser, or convert the video to H.264 (.mp4).");
+    return { frames, fps: fps / every, repeated };
   } finally { releaseVideo(v); }
 }
 
@@ -298,7 +352,7 @@ export async function oneFramePng(f: File, cat: Cat, w: number, h: number, index
     const v = await openVideo(f);
     try {
       const fps = await detectFps(v), t = Math.min(v.duration - 0.001, (index * every + 0.5) / fps);
-      await new Promise<void>((res) => { v.onseeked = () => res(); v.currentTime = Math.max(0, t); });
+      await settleFrame(v, t);
       return await canvasPng(resizeTo(v, w, h, smooth));
     } finally { releaseVideo(v); }
   }
