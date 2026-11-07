@@ -3,10 +3,15 @@ export class CastleAPIError extends Error { code?: string; }
 export class OfflineError extends CastleAPIError {}
 export class DeckDeleted extends CastleAPIError {}
 export class UploadTooLarge extends CastleAPIError {}
+/** Castle's storage refused to hand out a card's scene data (HTTP 403). */
+export class SceneDataForbidden extends CastleAPIError {}
 
 const API = "https://api.castle.xyz/graphql";
-export const UPLOAD_LIMIT = 10 * 1048576;
-export const TOO_LARGE = "This card is over Castle's 10 MB upload limit. Remove some media and try again.";
+// Scene data goes straight to S3 through a presigned POST (its policy says content-length-range 0-52428800), so it
+// never meets the API gateway's 10 MB cap. Images and audio still go through the gateway as GraphQL multipart.
+export const SCENE_UPLOAD_LIMIT = 50 * 1048576;
+export const GATEWAY_UPLOAD_LIMIT = 10 * 1048576;
+export const TOO_LARGE = "This card is over Castle's 50 MB upload limit. Remove some media and try again.";
 const DECK_GONE = "permission to view this deck";
 const USER_FIELDS = "userId username token isAnonymous photo{avatarUrl smallAvatarUrl}";
 
@@ -35,7 +40,7 @@ export function setToken(t: string | null) {
 
 function httpMessage(status: number, body = "") {
   const text = body.trim();
-  if (status === 413 || text.includes("EntityTooLarge") || text.includes("Request Entity Too Large")) return TOO_LARGE;
+  if (status === 413 || text.includes("EntityTooLarge") || text.includes("Request Entity Too Large")) return "That upload is over Castle's size limit.";
   if (!text || text.startsWith("<") || text.slice(0, 200).toLowerCase().includes("<html")) return `Castle returned an error (HTTP ${status}).`;
   return `Castle returned HTTP ${status}: ${text.slice(0, 200)}`;
 }
@@ -105,6 +110,7 @@ export async function downloadBlob(url: string): Promise<Blob> {
 export async function downloadJSON(url: string) {
   let r: Response;
   try { r = await fetch(url); } catch (e: any) { throw new OfflineError(String(e?.message || e)); }
+  if (r.status === 403) throw new SceneDataForbidden(`403 Forbidden for ${url}`);
   if (!r.ok) throw new CastleAPIError(`Download failed (HTTP ${r.status}).`);
   return r.json();
 }
@@ -134,7 +140,7 @@ export async function cardInfo(cardId: string) {
 /** Presigned S3 POST. Returns the uploadId for updateCardAndDeckV2. */
 export async function uploadSceneData(cardId: string, scene: any, onStage?: (s: string) => void): Promise<string> {
   const payload = JSON.stringify(scene);
-  if (new TextEncoder().encode(payload).length > UPLOAD_LIMIT) throw new UploadTooLarge(TOO_LARGE);
+  if (new TextEncoder().encode(payload).length > SCENE_UPLOAD_LIMIT) throw new UploadTooLarge(TOO_LARGE);
   const cfg = (await gql(`mutation($c: [ID!]!) { createSceneDataUploadConfig(cardIds: $c) { cardId uploadId postUrl postFields } }`, { c: [cardId] }))
     .createSceneDataUploadConfig?.[0];
   if (!cfg) throw new CastleAPIError("Failed to get scene data upload config.");
@@ -163,7 +169,7 @@ export async function updateCardAndDeckV2(deck: any, card: any) {
 }
 
 export async function uploadImage(file: Blob, name: string): Promise<{ fileId: string; url: string }> {
-  if (file.size > UPLOAD_LIMIT) throw new UploadTooLarge(`That image is ${(file.size / 1048576).toFixed(1)} MB, over Castle's 10 MB upload limit.`);
+  if (file.size > GATEWAY_UPLOAD_LIMIT) throw new UploadTooLarge(`That image is ${(file.size / 1048576).toFixed(1)} MB, over Castle's 10 MB upload limit.`);
   const r = await multipart("mutation UploadFile($file: Upload!) { uploadFile(file: $file) { fileId url } }", "uploadFile", file, name);
   if (!r?.fileId) throw new CastleAPIError("Castle didn't accept the image.");
   return r;

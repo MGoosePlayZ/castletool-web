@@ -1,14 +1,19 @@
 /** Opens the browser's file picker. Resolves to null when the person cancels. */
 export function pickFile(extensions: string[]): Promise<File | null> {
+  return pickFiles(extensions, false).then((fs) => fs[0] || null);
+}
+/** Same, but the person may choose several files (in the order the browser gives them). Resolves to [] when they cancel. */
+export function pickFiles(extensions: string[], multiple = true): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
+    input.multiple = multiple;
     input.accept = extensions.map((e) => "." + e).join(",");
     input.style.display = "none";
     let done = false;
-    const finish = (f: File | null) => { if (!done) { done = true; input.remove(); resolve(f); } };
-    input.onchange = () => finish(input.files?.[0] || null);
-    input.oncancel = () => finish(null);
+    const finish = (f: File[]) => { if (!done) { done = true; input.remove(); resolve(f); } };
+    input.onchange = () => finish(Array.from(input.files || []));
+    input.oncancel = () => finish([]);
     document.body.appendChild(input);
     input.click();
   });

@@ -5,16 +5,16 @@ import { DANGER, MAJOR, MINOR1, SEP, WARN } from "@/lib/theme";
 import { useApp, undo, redo, canUndo, canRedo, cardBytes, cardDirty, saveCard, isSaving, editQuick, editAsync, cardOf, discardCard, toast, ensureOnline, setLeaveGuard, requestBack, back } from "@/lib/store";
 import { cardBackground, cardTempo, setCardBackground, setCardTempo } from "@/lib/ops";
 import { pickFile } from "@/lib/pick";
-import { UPLOAD_LIMIT } from "@/lib/api";
+import { SCENE_UPLOAD_LIMIT } from "@/lib/api";
 import * as api from "@/lib/api";
 
 const SIDE = 88;
 
-/** How full the card is against Castle's 10 MB upload limit: white under 50%, yellow over 50%, red over 75%. */
+/** How full the card is against Castle's 50 MB upload limit: white under 50%, yellow over 50%, red over 75%. */
 function SizeMeter({ deckId, cardId }: { deckId: string; cardId: string }) {
-  const bytes = cardBytes(deckId, cardId), frac = bytes / UPLOAD_LIMIT, pct = Math.round(frac * 100);
+  const bytes = cardBytes(deckId, cardId), frac = bytes / SCENE_UPLOAD_LIMIT, pct = Math.round(frac * 100);
   const color = frac > 0.75 ? DANGER : frac > 0.5 ? WARN : MAJOR, size = 32, stroke = 3, r = (size - stroke) / 2, c = 2 * Math.PI * r;
-  const label = `${(bytes / 1048576).toFixed(2)} MB of ${UPLOAD_LIMIT / 1048576} MB`;
+  const label = `${(bytes / 1048576).toFixed(2)} MB of ${SCENE_UPLOAD_LIMIT / 1048576} MB`;
   return (
     <div className="flex shrink-0 items-center justify-center" style={{ width: 36, height: 40 }} title={label} aria-label={label} role="img">
       <div className="relative" style={{ width: size, height: size }}>

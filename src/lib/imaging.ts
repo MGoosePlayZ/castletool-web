@@ -110,18 +110,18 @@ function resizeTo(src: CanvasImageSource, w: number, h: number, smooth: boolean)
   return cv;
 }
 
-/** Every frame of an image/animation as base64 PNG, resized to w×h. `smooth` = bilinear; off = crisp nearest-neighbour. */
-export async function loadImageFrames(f: File, w: number, h: number, ico?: IcoSize, smooth = false, prog: Prog = NOOP): Promise<{ frames: string[]; fps: number }> {
+/** Every `every`-th frame of an image/animation as base64 PNG, resized to w×h (skipped frames are never resized or encoded; the fps is already divided by `every`). `smooth` = bilinear; off = crisp nearest-neighbour. */
+export async function loadImageFrames(f: File, w: number, h: number, ico?: IcoSize, smooth = false, prog: Prog = NOOP, every = 1): Promise<{ frames: string[]; fps: number }> {
   const e = extOf(f.name);
   if (!ico && [".png", ".apng", ".gif", ".webp"].includes(e)) {
-    const got = await animatedFrames(f, w, h, smooth, prog);
+    const got = await animatedFrames(f, w, h, smooth, prog, Math.max(1, Math.trunc(every) || 1));
     if (got) return got;
   }
   const bm = await bitmapOf(f, ico);
   try { return { frames: [await canvasPng(resizeTo(bm, w, h, smooth))], fps: 1 }; } finally { bm.close(); }
 }
 
-async function animatedFrames(f: File, w: number, h: number, smooth: boolean, prog: Prog): Promise<{ frames: string[]; fps: number } | null> {
+async function animatedFrames(f: File, w: number, h: number, smooth: boolean, prog: Prog, every = 1): Promise<{ frames: string[]; fps: number } | null> {
   const e = extOf(f.name), frames: string[] = [], durs: number[] = [];
   if (hasImageDecoder) {
     try {
@@ -129,8 +129,9 @@ async function animatedFrames(f: File, w: number, h: number, smooth: boolean, pr
       await dec.tracks.ready;
       const n = dec.tracks.selectedTrack?.frameCount || 1;
       if (n <= 1) { dec.close?.(); return null; }
-      for (let i = 0; i < n; i++) {
-        prog.step(i, n, `Processing frame ${i + 1}/${n}`);
+      const keep = Math.ceil(n / every);
+      for (let i = 0; i < n; i += every) {            // frames in between are never decoded
+        prog.step(frames.length, keep, `Processing frame ${frames.length + 1}/${keep}`);
         const { image } = await dec.decode({ frameIndex: i });
         durs.push(Math.max((image.duration || 100000) / 1000, 1));
         frames.push(await canvasPng(resizeTo(image, w, h, smooth)));
@@ -138,22 +139,24 @@ async function animatedFrames(f: File, w: number, h: number, smooth: boolean, pr
         await tick();
       }
       dec.close?.();
-      return { frames, fps: Math.round((1000 / (durs.reduce((a, b) => a + b, 0) / durs.length)) * 100) / 100 };
+      return { frames, fps: Math.round((1000 / (durs.reduce((a, b) => a + b, 0) / durs.length)) * 100) / 100 / every };
     } catch (err) { if (frames.length) throw err; }
   }
   if (e === ".gif") {
     const g = new GifReader(new Uint8Array(await f.arrayBuffer()));
     if (g.frameCount() <= 1) return null;
-    const total = g.frameCount();
+    const keep = Math.ceil(g.frameCount() / every);
     let i = 0;
-    for await (const fr of g.compose()) {
-      prog.step(i, total, `Processing frame ${i + 1}/${total}`);
-      frames.push(await canvasPng(resizeTo(fr.canvas, w, h, smooth)));
+    for await (const fr of g.compose()) {            // every frame is composed (later ones build on earlier ones), only kept ones are resized and encoded
       durs.push(Math.max(fr.delay, 1));
+      if (i % every === 0) {
+        prog.step(frames.length, keep, `Processing frame ${frames.length + 1}/${keep}`);
+        frames.push(await canvasPng(resizeTo(fr.canvas, w, h, smooth)));
+        await tick();
+      }
       i++;
-      await tick();
     }
-    return { frames, fps: Math.round((1000 / (durs.reduce((a, b) => a + b, 0) / durs.length)) * 100) / 100 };
+    return { frames, fps: Math.round((1000 / (durs.reduce((a, b) => a + b, 0) / durs.length)) * 100) / 100 / every };
   }
   return null;
 }

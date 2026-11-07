@@ -60,23 +60,31 @@ export async function extractArchive(file: File): Promise<File[]> {
   return files.map((x) => x.f);
 }
 
-/** What the user picked (a file or an archive) → { files, cat }. Reasons for failure go to the log. */
-export async function gatherMedia(file: File): Promise<{ files: File[]; cat: Cat } | null> {
-  if (!isArchive(file.name)) {
-    if (file.size === 0) { log(`error: ${file.name} is empty (0 bytes).`); return null; }
-    const cat = await classifyFile(file);
-    if (!cat) {
-      const ext = extOf(file.name) || "(no extension)";
-      log(`error: Unsupported file type: ${ext}`);
-      log(`If you'd like ${ext} supported, please make an issue on GitHub: https://github.com/MGoosePlayZ/castletool/issues`);
-      return null;
-    }
-    return { files: [file], cat };
-  }
-  log(`Reading archive: ${file.name}`);
+/** What the user picked (a file, an archive, or several files at once) → { files, cat }. Reasons for failure go to the log. */
+export async function gatherMedia(src: File | File[]): Promise<{ files: File[]; cat: Cat } | null> {
+  const picked = Array.isArray(src) ? src : [src];
+  if (!picked.length) { log("error: No files were chosen."); return null; }
+  const several = picked.length > 1, what = several ? "selection" : "archive";
   let files: File[];
-  try { files = await extractArchive(file); } catch (e: any) { log(`error: Could not read archive: ${e.message || e}`); return null; }
-  if (!files.length) { log("error: The archive doesn't contain any files."); return null; }
+  if (!several) {
+    const file = picked[0];
+    if (!isArchive(file.name)) {
+      if (file.size === 0) { log(`error: ${file.name} is empty (0 bytes).`); return null; }
+      const cat = await classifyFile(file);
+      if (!cat) {
+        const ext = extOf(file.name) || "(no extension)";
+        log(`error: Unsupported file type: ${ext}`);
+        log(`If you'd like ${ext} supported, please make an issue on GitHub: https://github.com/MGoosePlayZ/castletool/issues`);
+        return null;
+      }
+      return { files: [file], cat };
+    }
+    log(`Reading archive: ${file.name}`);
+    try { files = await extractArchive(file); } catch (e: any) { log(`error: Could not read archive: ${e.message || e}`); return null; }
+    if (!files.length) { log("error: The archive doesn't contain any files."); return null; }
+  } else {
+    files = [...picked].sort((a, b) => natCmp(a.name, b.name));
+  }
   const by = new Map<Cat, File[]>();
   let ignored = 0, empty = 0;
   for (const f of files) {
@@ -84,9 +92,9 @@ export async function gatherMedia(file: File): Promise<{ files: File[]; cat: Cat
     const c = await classifyFile(f);
     if (!c) ignored++; else { if (!by.has(c)) by.set(c, []); by.get(c)!.push(f); }
   }
-  if (empty) log(`warning: Ignored ${empty} empty file(s) in the archive.`);
-  if (ignored) log(`warning: Ignored ${ignored} unsupported file(s) in the archive.`);
-  if (!by.size) { log("error: No supported files were found in the archive."); return null; }
+  if (empty) log(`warning: Ignored ${empty} empty file(s) in the ${what}.`);
+  if (ignored) log(`warning: Ignored ${ignored} unsupported file(s) in the ${what}.`);
+  if (!by.size) { log(`error: No supported files were found in the ${what}.`); return null; }
   if (by.size > 1) {
     log("error: Supported files are of different purpose");
     log("warning: Found: " + [...by].map(([c, v]) => `${v.length} ${CATEGORY_LABELS[c]}`).join(", "));

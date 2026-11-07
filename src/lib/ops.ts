@@ -6,7 +6,7 @@ import * as img from "./imaging";
 import { svgDims, svgToPathData, vectorDrawing, rasterizeSvg, needsFallbackColor, parseSvgFile, SVG_PPU } from "./svg";
 import { gatherMedia } from "./archive";
 import { loadFont, vectorFontFrames, renderFontBitmap, fontDrawing, fontCodepoints, fontHasGlyph, glyphToPathData } from "./fonts";
-import { readMidi, buildMusic, midiBpm } from "./midi";
+import { readMidi, buildMusic, midiBpm, clampVolumeOffset } from "./midi";
 import { attachAudio, attachPcm, pcmToMp3, stripAudioRules, canEncodeMp3 } from "./audio";
 import { renderMusic } from "./synth";
 import { Prog, NOOP } from "./tasks";
@@ -101,7 +101,7 @@ export const DEFAULT_MEDIA_OPTS: MediaOpts = {
 
 export interface MediaInfo { category: img.Cat; count: number; names: string[]; unsupported: string; has_audio: boolean; audio_unsupported: boolean; size: number; frames: number; files: File[] }
 
-export async function inspectMedia(file: File): Promise<MediaInfo> {
+export async function inspectMedia(file: File | File[]): Promise<MediaInfo> {
   const found = await gatherMedia(file);
   if (!found) throw new OpError("No usable files found (see log).");
   const { files, cat } = found;
@@ -176,8 +176,7 @@ async function renderVisual(f: File, cat: img.Cat, st: State, ico: img.IcoSize |
     r = v;
   }
   else {
-    r = await img.loadImageFrames(f, w, h, ico, st.smooth, prog.sub(0, loadEnd));
-    if (st.every > 1) { r = { frames: r.frames.filter((_, i) => i % st.every === 0), fps: r.fps / st.every }; }
+    r = await img.loadImageFrames(f, w, h, ico, st.smooth, prog.sub(0, loadEnd), st.every);
   }
   if (st.quantize) r.frames = await img.quantizeFrames(r.frames, st.quantize, prog.sub(loadEnd, 1));
   const mode = cat === "animation" || cat === "video" || r.frames.length > 1 ? "loop" : "still";
@@ -385,10 +384,10 @@ export async function importFont(ctx: Ctx, info: MediaInfo, o: Partial<FontOpts>
 }
 
 // ── MIDI → Music ───────────────────────────────────────────────────────
-export async function importMidi(ctx: Ctx, file: File, prog: Prog) {
+export async function importMidi(ctx: Ctx, file: File, prog: Prog, volumeOffset = 0) {
   let mid;
   try { mid = readMidi(new Uint8Array(await file.arrayBuffer())); } catch (e: any) { throw new OpError(`Could not read MIDI: ${e?.message || e}`); }
-  const music = buildMusic(mid, prog.sub(0, 0.95));
+  const music = buildMusic(mid, prog.sub(0, 0.95), clampVolumeOffset(volumeOffset));
   log(`MIDI ready: ${Object.keys(music.song.patterns).length} patterns, ${music.song.tracks.length} tracks`);
   const actor = libraryOf(ctx.rc)[ctx.entryId];
   ensureComponents(actor).Music = music;

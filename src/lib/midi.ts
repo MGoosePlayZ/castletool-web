@@ -104,7 +104,13 @@ function collectTracks(mid: Midi): Track[] {
   return out;
 }
 
-export function buildMusic(mid: Midi, prog: Prog = NOOP) {
+export const VOLUME_OFFSET_MIN = -127, VOLUME_OFFSET_MAX = 127;
+/** The volume offset as an integer inside -127..127 (anything unreadable counts as 0). */
+export const clampVolumeOffset = (v: unknown) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.max(VOLUME_OFFSET_MIN, Math.min(VOLUME_OFFSET_MAX, n)) : 0; };
+
+/** `volumeOffset` (-127..127) is added to the velocity of every tone note (result kept in 1..127). Drum hits carry no velocity, so they aren't affected. */
+export function buildMusic(mid: Midi, prog: Prog = NOOP, volumeOffset = 0) {
+  const offset = clampVolumeOffset(volumeOffset);
   const tracks = collectTracks(mid), patterns: Record<string, any> = {}, castle: any[] = [];
   tracks.forEach((track, ti) => {
     prog.step(ti, tracks.length, `Converting track ${ti + 1}/${tracks.length}`);
@@ -129,7 +135,7 @@ export function buildMusic(mid: Midi, prog: Prog = NOOP) {
     for (const [beat, note, vel] of track.events) {
       const b = Math.round(beat * 1e9) / 1e9;
       if (!by.has(b)) by.set(b, []);
-      by.get(b)!.push([Math.min(127, note + 12), vel]);
+      by.get(b)!.push([Math.min(127, note + 12), offset ? Math.max(1, Math.min(127, vel + offset)) : vel]);
     }
     const notes: Record<string, any> = {};
     [...by.entries()].sort((a, b) => a[0] - b[0]).forEach(([b, ns]) => { notes[beatKey(b)] = ns.map(([key, vel]) => ({ key, vel })); });

@@ -255,7 +255,7 @@ export const resetGlobalAge = () => { globalAt = 0; };
 export function snapOf(rc: CardRec): string {
   return JSON.stringify({ s: rc.scene, bg: rc.meta?.backgroundColor ?? null, img: rc.meta?.backgroundImage ?? null, f: rc.coverFileId ?? null });
 }
-/** Bytes of the scene data Castle receives for this card (the number its 10 MB upload limit applies to). Cached per edit. */
+/** Bytes of the scene data Castle receives for this card (the number its 50 MB upload limit applies to). Cached per edit. */
 const bytesCache = new Map<string, { rev: number; bytes: number }>();
 export function cardBytes(deckId: string, cardId: string): number {
   const rc = state.local[deckId]?.cards[cardId];
@@ -371,7 +371,13 @@ export async function freshClone(deckId: string, task: Task): Promise<DeckRec> {
     if (!c.cardId || !c.sceneDataUrl) continue;
     task.step(i, cards.length, `Downloading card ${i + 1}/${cards.length}`);
     log(`getting ${c.cardId}...`);
-    const scene = await api.downloadJSON(c.sceneDataUrl);
+    let scene: any;
+    try { scene = await api.downloadJSON(c.sceneDataUrl); }
+    catch (e) {
+      // 403 from Castle's storage (seen on cauldron decks): skip this card and open the deck anyway.
+      if (e instanceof api.SceneDataForbidden) { log(`warning: Castle won't give out the scene data of card ${c.cardId} (403); skipped.`); continue; }
+      throw e;
+    }
     const rc: CardRec = { meta: c, scene, coverFileId: null, dirty: false };
     rc.baseline = snapOf(rc);
     rec.cards[c.cardId] = rc;

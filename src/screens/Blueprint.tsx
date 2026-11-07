@@ -15,7 +15,8 @@ import { OpError, drawFrame, drawingInfo, frameCount, layerSummary, layersOf, d2
 import { IMAGE_EXTS, VIDEO_EXTS, VECTOR_EXTS, FONT_EXTS, AUDIO_EXTS } from "@/lib/imaging";
 import { LiveSynth, musicStats } from "@/lib/synth";
 import { audioUrls } from "@/lib/audio";
-import { pickFile, saveBlob } from "@/lib/pick";
+import { VOLUME_OFFSET_MIN, VOLUME_OFFSET_MAX, clampVolumeOffset } from "@/lib/midi";
+import { pickFile, pickFiles, saveBlob } from "@/lib/pick";
 import { exportLayer } from "@/lib/export";
 import { cn } from "@/lib/utils";
 
@@ -66,10 +67,11 @@ const LogBox = () => { const { devMode } = useApp(); return devMode ? <div class
 function MediaPanel({ deckId, cardId, entryId }: P) {
   const rc = cardOf(deckId, cardId)!, bp = ops.libraryOf(rc)[entryId], d2 = d2Of(bp), has = !!d2 && frameCount(d2) > 0;
   const pick = async (target: string) => {
-    const f = await pickFile(MEDIA_EXTS);
-    if (!f) return;
+    const picked = await pickFiles(MEDIA_EXTS);
+    if (!picked.length) return;
+    const f = picked[0];
     let info: ops.MediaInfo;
-    try { info = await ops.inspectMedia(f); } catch (e: any) { toast(e?.message || String(e), true); return; }
+    try { info = await ops.inspectMedia(picked.length === 1 ? f : picked); } catch (e: any) { toast(e?.message || String(e), true); return; }
     if (info.category === "audio") { toast("That's audio. Use the Audio tab.", true); return; }
     if (info.unsupported) { toast(info.unsupported, true); return; }
     openImportDialog({ deckId, cardId, entryId, file: f, info, layer: target });
@@ -237,13 +239,30 @@ function Player({ music, bpm }: { music: any; bpm: number }) {
   return eng.warnings.length ? <div className="flex flex-col gap-1.5">{row}<InfoNote>{eng.warnings.join("\n")}</InfoNote></div> : row;
 }
 
+/** Volume offset slider of the MIDI import dialog: -127..127, 0 = the file's own velocities. */
+function MidiVolume({ onChange }: { onChange: (v: number) => void }) {
+  const [v, setV] = useState(0);
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="text-sm" style={{ color: MINOR1 }}>{v ? `Volume offset: ${v > 0 ? "+" : ""}${v}` : "Volume offset: 0"}</div>
+      <Slider min={VOLUME_OFFSET_MIN} max={VOLUME_OFFSET_MAX} step={1} value={[v]} onValueChange={(x) => { const n = clampVolumeOffset(x[0]); setV(n); onChange(n); }} />
+    </div>
+  );
+}
+
 function MusicPanel({ deckId, cardId, entryId }: P) {
   const rc = cardOf(deckId, cardId)!, bp = ops.libraryOf(rc)[entryId], music = ops.components(bp).Music, bpm = ops.cardTempo(rc);
   const upload = async () => {
     const f = await pickFile(["mid", "midi", "smf"]);
     if (!f) return;
-    const res = await editAsync(deckId, cardId, "Importing MIDI", (task, c, rec) => ops.importMidi({ rc: c, rec, entryId }, f, task));
-    if (res) toast("MIDI imported.");
+    const run = async (volumeOffset: number) => {
+      const res = await editAsync(deckId, cardId, "Importing MIDI", (task, c, rec) => ops.importMidi({ rc: c, rec, entryId }, f, task, volumeOffset));
+      if (res) toast("MIDI imported.");
+    };
+    const chosen = { v: 0 };
+    showDialog("Import MIDI", () => <MidiVolume onChange={(v) => { chosen.v = v; }} />, {
+      actions: (close) => <TextAction label="Import" onClick={() => { close(); void run(clampVolumeOffset(chosen.v)); }} />,
+    });
   };
   const download = () => {
     try {
