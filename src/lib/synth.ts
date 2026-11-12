@@ -110,6 +110,17 @@ export function collectNotes(music: any, bpm: number): NoteEv[] {
   return out.sort((a, b) => a.t - b.t);
 }
 
+/** '#rrggbb' per track: the color of the pattern the track starts with (white when it has none). */
+export function trackColors(music: any): string[] {
+  const song = music?.song || {}, patterns = song.patterns || {};
+  return (song.tracks || []).map((t: any) => {
+    const c = clipsOf(t, patterns)[0]?.[1]?.color;
+    if (!c || typeof c !== "object") return "#ffffff";
+    const ch = (k: string) => { const v = parseFloat(c[k] ?? 1); return Math.round(Math.max(0, Math.min(1, Number.isFinite(v) ? v : 1)) * 255).toString(16).padStart(2, "0"); };
+    return "#" + ch("r") + ch("g") + ch("b");
+  });
+}
+
 export function musicStats(music: any, bpm: number) {
   const notes = collectNotes(music, bpm), song = music?.song || {};
   return { tracks: (song.tracks || []).length, patterns: Object.keys(song.patterns || {}).length, notes: notes.length, seconds: notes.length ? notes[notes.length - 1].t : 0, bpm };

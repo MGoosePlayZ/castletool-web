@@ -5,7 +5,12 @@ import { Prog, NOOP } from "./tasks";
 
 const DEFAULT_TEMPO = 500000;
 export const beatKey = (b: number) => b.toFixed(6);
-const makeColor = () => ({ r: 0.19607, g: 0.16862, b: 0.15681, a: 1.0 });
+/** A random vibrant pattern color (any hue, saturation 70-100 %, lightness 30-70 %): one call per imported track. */
+function makeColor() {
+  const h = Math.random() * 360, sat = 0.7 + Math.random() * 0.3, l = 0.3 + Math.random() * 0.4;
+  const a = sat * Math.min(l, 1 - l), f = (n: number) => l - a * Math.max(-1, Math.min((n + h / 30) % 12 - 3, Math.min(9 - ((n + h / 30) % 12), 1)));
+  return { r: r5(f(0)), g: r5(f(8)), b: r5(f(4)), a: 1.0 };
+}
 const uuid = () => crypto.randomUUID();
 
 export const CASTLE_DRUMS: Record<number, number> = {

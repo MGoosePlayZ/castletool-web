@@ -159,23 +159,40 @@ export async function applyDrawing(ex: any, nw: any, target: string | null): Pro
 }
 
 // ── preview rendering ──────────────────────────────────────────────────
-function arcPts([x1, y1]: number[], [xb, yb]: number[], [x2, y2]: number[]): number[][] {
-  const d = 2 * (x1 * (yb - y2) + xb * (y2 - y1) + x2 * (y1 - yb)), ch = Math.hypot(x2 - x1, y2 - y1);
-  if (ch < 1e-9 || Math.abs(d) < 1e-7 * Math.max(1, ch * ch)) return [[x1, y1], [x2, y2]];
-  const s1 = x1 * x1 + y1 * y1, s2 = xb * xb + yb * yb, s3 = x2 * x2 + y2 * y2;
-  const ux = (s1 * (yb - y2) + s2 * (y2 - y1) + s3 * (y1 - yb)) / d, uy = (s1 * (x2 - xb) + s2 * (x1 - x2) + s3 * (xb - x1)) / d;
-  const r = Math.hypot(x1 - ux, y1 - uy), a1 = Math.atan2(y1 - uy, x1 - ux), ab = Math.atan2(yb - uy, xb - ux), a2 = Math.atan2(y2 - uy, x2 - ux);
-  const T = 2 * Math.PI, m = (a: number, b: number) => (((a - b) % T) + T) % T;
-  const cb = m(ab, a1), c2 = m(a2, a1), sw = cb <= c2 ? c2 : -m(a1, a2);
-  const n = Math.max(6, Math.min(96, Math.floor((Math.abs(sw) * r) / 0.15) + 2)), pts: number[][] = [];
-  for (let i = 0; i <= n; i++) pts.push([ux + r * Math.cos(a1 + (sw * i) / n), uy + r * Math.sin(a1 + (sw * i) / n)]);
-  pts[0] = [x1, y1]; pts[n] = [x2, y2];
-  return pts;
+const TAU = Math.PI * 2, mod = (a: number, b: number) => ((a % b) + b) % b;
+/** Castle's arc segment: a circular arc whose bulge (sagitta) is the bend point's perpendicular distance from the chord,
+ *  capped at a semicircle. Straight line when there is no bulge. */
+function arcPts(p1: number[], bp: number[], p2: number[], n = 96): number[][] {
+  const cx = p2[0] - p1[0], cy = p2[1] - p1[1], L = Math.hypot(cx, cy);
+  if (L < 1e-9) return [p1, p2];
+  const nx = -cy / L, ny = cx / L, mx = (p1[0] + p2[0]) / 2, my = (p1[1] + p2[1]) / 2;
+  let h = (bp[0] - mx) * nx + (bp[1] - my) * ny;
+  h = Math.sign(h) * Math.min(Math.abs(h), L / 2);
+  const a = Math.abs(h);
+  if (a < 1e-6) return [p1, p2];
+  const R = (L * L / 4 + a * a) / (2 * a), sg = Math.sign(h), ox = mx + nx * sg * (a - R), oy = my + ny * sg * (a - R);
+  const ccw = (p1[0] - ox) * (my + ny * h - oy) - (p1[1] - oy) * (mx + nx * h - ox) > 0;
+  const a1 = Math.atan2(p1[1] - oy, p1[0] - ox), a2 = Math.atan2(p2[1] - oy, p2[0] - ox);
+  const sw = ccw ? mod(a2 - a1, TAU) : -mod(a1 - a2, TAU), out: number[][] = [];
+  for (let i = 0; i <= n; i++) { const t = a1 + (sw * i) / n; out.push([ox + R * Math.cos(t), oy + R * Math.sin(t)]); }
+  out[0] = p1; out[n] = p2;
+  return out;
+}
+/** Segments of type 2 / 3 carry no bend point: quarter ellipses centred on a corner of the chord's bounding box
+ *  (type 2 bulges toward smaller y, type 3 toward larger y). */
+function quarterPts(a: number[], b: number[], kind: number, n = 24): number[][] {
+  const c1 = [a[0], b[1]], c2 = [b[0], a[1]];
+  const cen = kind === 2 ? (c1[1] >= c2[1] ? c1 : c2) : (c1[1] <= c2[1] ? c1 : c2);
+  const ux = a[0] - cen[0], uy = a[1] - cen[1], vx = b[0] - cen[0], vy = b[1] - cen[1], out: number[][] = [];
+  for (let i = 0; i <= n; i++) { const f = (Math.PI / 2) * i / n, c = Math.cos(f), s = Math.sin(f); out.push([cen[0] + ux * c + vx * s, cen[1] + uy * c + vy * s]); }
+  return out;
 }
 export const segPts = (s: any): number[][] => {
   const p = s.p || [];
   if (p.length < 4) return [];
-  return s.bp && "x" in s.bp ? arcPts([p[0], p[1]], [s.bp.x, s.bp.y], [p[2], p[3]]) : [[p[0], p[1]], [p[2], p[3]]];
+  const a = [p[0], p[1]], b = [p[2], p[3]];
+  if (!s.bp) return s.s === 2 || s.s === 3 ? quarterPts(a, b, s.s) : [a, b];
+  return "x" in s.bp ? arcPts(a, [s.bp.x, s.bp.y], b) : [a, b];
 };
 function frameItems(d2: any, i: number) {
   const out: any[] = [];

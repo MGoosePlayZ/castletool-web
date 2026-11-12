@@ -13,7 +13,8 @@ import { useApp, cardOf, editQuick, editAsync, ensureOnline, toast, back, useApp
 import * as ops from "@/lib/ops";
 import { OpError, drawFrame, drawingInfo, frameCount, layerSummary, layersOf, d2Of, deleteLayer, moveLayer, renameLayer, makeCanvas, sceneBounds, NEW } from "@/lib/drawing";
 import { IMAGE_EXTS, VIDEO_EXTS, VECTOR_EXTS, FONT_EXTS, AUDIO_EXTS } from "@/lib/imaging";
-import { LiveSynth, musicStats } from "@/lib/synth";
+import { musicStats } from "@/lib/synth";
+import { PianoRoller } from "@/components/PianoRoller";
 import { audioUrls } from "@/lib/audio";
 import { VOLUME_OFFSET_MIN, VOLUME_OFFSET_MAX, clampVolumeOffset } from "@/lib/midi";
 import { pickFile, pickFiles, saveBlob } from "@/lib/pick";
@@ -25,7 +26,6 @@ const ext = (s: Set<string>) => [...s].map((e) => e.replace(".", ""));
 const MEDIA_EXTS = [...new Set([...ext(IMAGE_EXTS), ...ext(VIDEO_EXTS), ...ext(VECTOR_EXTS), ...ext(FONT_EXTS), ...ARCHIVES])].sort();
 const AUDIO_PICK = [...new Set([...ext(AUDIO_EXTS), ...ARCHIVES])].sort();
 const LAYER_ROW_H = 48;
-const clock = (s: number) => { const t = Math.max(0, Math.trunc(s)); return `${Math.trunc(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
 
 type Tab = "media" | "music" | "audio";
 interface P { deckId: string; cardId: string; entryId: string }
@@ -215,30 +215,6 @@ function TextPanel({ deckId, cardId, entryId }: P) {
 }
 
 // ── MUSIC ──────────────────────────────────────────────────────────────
-function Player({ music, bpm }: { music: any; bpm: number }) {
-  const eng = useMemo(() => { try { const e = new LiveSynth(music, bpm); e.loop = false; return e; } catch { return null; } }, [music, bpm]);
-  const [pos, setPos] = useState(0), [playing, setPlaying] = useState(false), [drag, setDrag] = useState<number | null>(null);
-  useEffect(() => () => eng?.close(), [eng]);
-  useEffect(() => {
-    if (!eng) return;
-    eng.onEnd = () => { setPlaying(false); setPos(0); };
-    const h = window.setInterval(() => { setPos(eng.position); setPlaying(eng.playing); }, 100);
-    return () => clearInterval(h);
-  }, [eng]);
-  if (!eng) return <Minor>Couldn't prepare the player.</Minor>;
-  if (!eng.notes.length) return <Minor>No notes</Minor>;
-  const durMs = Math.max(1, Math.trunc(eng.duration * 1000));
-  const row = (
-    <div className="flex items-center gap-0.5">
-      <IconButton size={44} onClick={() => { if (eng.playing) { eng.stop(); setPos(0); setPlaying(false); } else { eng.play(); setPlaying(true); } }}><CI name={playing ? "stop" : "play_music"} size={26} /></IconButton>
-      <div className="w-10 text-right text-xs" style={{ color: MINOR1 }}>{clock(drag !== null ? drag / 1000 : pos)}</div>
-      <Slider min={0} max={durMs} step={1} className="mx-2" value={[drag ?? Math.min(pos * 1000, durMs)]} onValueChange={(v) => setDrag(v[0])} onValueCommit={(v) => { setDrag(null); eng.seek(v[0] / 1000); }} />
-      <div className="w-10 text-left text-xs" style={{ color: MINOR1 }}>{clock(eng.duration)}</div>
-    </div>
-  );
-  return eng.warnings.length ? <div className="flex flex-col gap-1.5">{row}<InfoNote>{eng.warnings.join("\n")}</InfoNote></div> : row;
-}
-
 /** Volume offset slider of the MIDI import dialog: -127..127, 0 = the file's own velocities. */
 function MidiVolume({ onChange }: { onChange: (v: number) => void }) {
   const [v, setV] = useState(0);
@@ -290,7 +266,7 @@ function MusicPanel({ deckId, cardId, entryId }: P) {
     <div className="flex flex-col gap-2">
       {music && st ? <>
         <Minor size={12}>{`${st.tracks} track${st.tracks !== 1 ? "s" : ""} · ${st.notes.toLocaleString("en-US")} notes · ${+bpm.toPrecision(12)} BPM`}</Minor>
-        <Player music={music} bpm={bpm} />
+        <PianoRoller music={music} bpm={bpm} />
         <InfoNote>Non-tonal samples aren't implemented</InfoNote>
       </> : <div className="flex h-[120px] items-center justify-center"><CI name="music" size={30} color={MINOR1} /></div>}
       <div className="mt-3.5 flex"><PillButton label="Upload" filled icon={<CI name="upload" size={18} color={BG} />} onClick={() => void upload()} /></div>
