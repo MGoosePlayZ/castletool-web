@@ -15,7 +15,7 @@ export const GLOBAL_MAX_AGE = 120_000;
 export const LOG_LEVELS: [number, string][] = [[0, "Errors only"], [1, "Normal"], [2, "Verbose"]];
 export const TABS = ["RECENT", "PUBLIC", "UNLISTED", "PRIVATE", "LOCAL", "GLOBAL"];
 
-export interface Nav { deckId: string | null; cardId: string | null; bpId: string | null; profile: boolean }
+export interface Nav { deckId: string | null; cardId: string | null; bpId: string | null; profile: boolean; editor?: boolean }
 export interface DialogEntry { id: number; render: (close: () => void) => ReactNode; onClose?: () => void }
 
 interface State {
@@ -511,6 +511,7 @@ export async function saveCard(deckId: string, cardId: string): Promise<boolean>
 let navPrev: Nav = state.nav;
 export function nav(next: Partial<Nav>, opts: { replace?: boolean } = {}) {
   const n: Nav = { ...state.nav, ...next };
+  if (next.editor === undefined && ("deckId" in next || "cardId" in next || "bpId" in next)) n.editor = false;   // moving anywhere else closes the art editor
   if (!isDesktop()) {
     try { opts.replace ? history.replaceState(n, "") : history.pushState(n, ""); } catch { /* ignore */ }
   }
@@ -523,6 +524,7 @@ export function back() {
   if (!isDesktop()) { history.back(); return; }
   const n = state.nav;
   if (n.profile) set({ nav: { ...n, profile: false } });
+  else if (n.editor) set({ nav: { ...n, editor: false } });
   else if (n.bpId) set({ nav: { ...n, bpId: null } });
   else if (n.cardId) set({ nav: { ...n, cardId: null } });
   else if (n.deckId) set({ nav: { ...n, deckId: null } });

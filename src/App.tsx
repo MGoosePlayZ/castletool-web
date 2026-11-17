@@ -8,6 +8,7 @@ import { HomeBody } from "@/screens/Home";
 import { DeckBody } from "@/screens/Deck";
 import { CardBody } from "@/screens/Card";
 import { BlueprintView } from "@/screens/Blueprint";
+import { EditorScreen } from "@/screens/Editor";
 import { ProfileScreen } from "@/screens/Profile";
 import { SignInScreen } from "@/screens/SignIn";
 import { useApp, loadLocal, initNavigation, refreshProfile, getSetting, nav, requestNav, signedIn } from "@/lib/store";
@@ -99,6 +100,8 @@ export function App() {
   return (
     <div className="h-full w-full bg-black">
       {!app.loaded ? null : needSignIn ? <SignInScreen /> : desktop ? <Desktop /> : <Mobile />}
+      {/* the art editor covers the whole window; the screens under it stay as they were */}
+      {app.loaded && !needSignIn && app.nav.editor && app.nav.deckId && app.nav.cardId && app.nav.bpId && <EditorScreen key={app.nav.bpId} deckId={app.nav.deckId} cardId={app.nav.cardId} entryId={app.nav.bpId} />}
       <DialogHost />
       <ProgressOverlay />
       <Toaster />

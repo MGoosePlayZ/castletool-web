@@ -1,4 +1,4 @@
-import { Minor, Swatch } from "@/components/widgets";
+import { FitSwatch, Minor } from "@/components/widgets";
 import { cn } from "@/lib/utils";
 import { useApp, requestNav } from "@/lib/store";
 import { coverOf } from "@/components/CardBar";
@@ -19,13 +19,13 @@ export function DeckBody({ deckId, selectedCardId }: { deckId: string; selectedC
   if (!ids.length) return <div className="flex h-full items-center justify-center"><Minor size={13}>No cards</Minor></div>;
   return (
     <div className="h-full overflow-auto p-3.5">
-      <div className="flex flex-wrap justify-center gap-x-3 gap-y-3.5">
+      <div className="grid grid-cols-3 gap-x-3 gap-y-3.5">
         {ids.map((cid) => {
           const rc = rec.cards[cid], meta = rc?.meta || (rec.deck.cards || []).find((c: any) => c.cardId === cid) || {};
           return (
-            <button key={cid} type="button" onClick={() => requestNav({ cardId: cid, bpId: null })} className={cn("flex flex-col items-center gap-1 rounded-xl hover:bg-accent/60", selectedCardId === cid && "bg-accent")} style={{ width: 104 }}>
-              <Swatch bg={validHex(meta.backgroundColor)} width={104} cover={coverOf({ meta })} />
-              <Minor size={10} className="line-clamp-2 w-[104px] break-all text-center">{cid}</Minor>
+            <button key={cid} type="button" onClick={() => requestNav({ cardId: cid, bpId: null })} className={cn("flex min-w-0 flex-col items-start gap-1 rounded-xl text-left hover:bg-accent/60", selectedCardId === cid && "bg-accent")}>
+              <FitSwatch bg={validHex(meta.backgroundColor)} cover={coverOf({ meta })} />
+              <Minor size={10} className="line-clamp-2 w-full break-all text-center">{cid}</Minor>
             </button>
           );
         })}

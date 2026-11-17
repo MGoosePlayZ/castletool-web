@@ -330,7 +330,7 @@ export function buildDrawing2(frames: string[], fps: number, width: number, heig
     drawData: {
       color: [1, 1, 1, 1], lineColor: [0, 0, 0, 1], gridSize: 0.71428, scale: sc, version: 3, fillPixelsPerUnit: sc, numTotalLayers: 1,
       framesBounds: fb, colors: [], selectedFrame: 1,
-      layers: [{ title: "Layer 1", id: "layer1", isVisible: true, isBitmap: true, isAvatar: false, frames: cf }],
+      layers: [{ title: "Paint 1", id: "layer1", isVisible: true, isBitmap: true, isAvatar: false, frames: cf }],
     },
     physicsBodyData: {
       shapes: [{ p1: { x: width / 2 / sc, y: height / 2 / sc }, p2: { x: -width / 2 / sc, y: -height / 2 / sc }, p3: { x: 0, y: 0 }, radius: 0, x: 0, y: 0, type: "rectangle" }],

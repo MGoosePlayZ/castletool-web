@@ -31,7 +31,7 @@ function SwitchRow({ label, value, onChange }: { label: string; value: boolean; 
   return <div className="flex items-center gap-1.5"><Switch checked={value} onCheckedChange={onChange} /><span className="flex-1 text-sm">{label}</span></div>;
 }
 
-function Body({ deckId, cardId, entryId, file, info, layer, close }: { deckId: string; cardId: string; entryId: string; file: File; info: ops.MediaInfo; layer: string | null; close: () => void }) {
+function Body({ deckId, cardId, entryId, file, info, layer, onImported, close }: { deckId: string; cardId: string; entryId: string; file: File; info: ops.MediaInfo; layer: string | null; onImported?: () => void; close: () => void }) {
   const cat = info.category;
   const [vals, setVals] = useState<Vals>({ charsets: ["ASCII"], quantize_on: info.size > 500_000 });
   const [frame, setFrame] = useState(0), [dragFrame, setDragFrame] = useState<number | null>(null), [ready, setReady] = useState(false), busy = useRef(false);
@@ -124,6 +124,7 @@ function Body({ deckId, cardId, entryId, file, info, layer, close }: { deckId: s
       let msg = res.written.length === 1 ? "Imported." : `Imported ${res.written.length} actors.`;
       if (res.warnings.length) { msg = `Imported, but ${res.warnings.join("; ")}.`; log("warning: " + msg); }
       toast(msg);
+      onImported?.();
     } else setVals((o) => ({ ...o }));       // cancelled or failed: the dialog stays, settings kept
   };
   (Body as any).doImport = doImport;
@@ -194,14 +195,14 @@ function Body({ deckId, cardId, entryId, file, info, layer, close }: { deckId: s
   );
 }
 
-export function openImportDialog(a: { deckId: string; cardId: string; entryId: string; file: File; info: ops.MediaInfo; layer: string | null }) {
+export function openImportDialog(a: { deckId: string; cardId: string; entryId: string; file: File; info: ops.MediaInfo; layer: string | null; onImported?: () => void }) {
   // the Import button lives in the dialog's action row, so the body exposes its handler through a ref-like hook
   const handle: { go?: () => void } = {};
   showDialog("Upload", (close) => <BodyWithAction {...a} close={close} handle={handle} />, {
     actions: () => <div className="pr-2"><PillButton label="Import" filled onClick={() => handle.go?.()} /></div>,
   });
 }
-function BodyWithAction(p: { deckId: string; cardId: string; entryId: string; file: File; info: ops.MediaInfo; layer: string | null; close: () => void; handle: { go?: () => void } }) {
+function BodyWithAction(p: { deckId: string; cardId: string; entryId: string; file: File; info: ops.MediaInfo; layer: string | null; onImported?: () => void; close: () => void; handle: { go?: () => void } }) {
   const { handle, ...rest } = p;
   useEffect(() => { handle.go = () => (Body as any).doImport?.(); return () => { handle.go = undefined; }; }, [handle]);
   return <Body {...rest} />;

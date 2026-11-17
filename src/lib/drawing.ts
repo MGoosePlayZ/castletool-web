@@ -139,7 +139,8 @@ export async function applyDrawing(ex: any, nw: any, target: string | null): Pro
     let n = (+dd.numTotalLayers || layers.length) + 1;
     const taken = new Set(layers.map((l: any) => l.id));
     while (taken.has("layer" + n)) n++;
-    layers.push({ title: "Layer " + n, id: "layer" + n, isVisible: true, isBitmap: !!src.isBitmap, isAvatar: false, frames });
+    const nums = layers.map((l: any) => +(/(\d+)\s*$/.exec(l.title || "")?.[1] || 0));   // same numbering as the art editor: largest number in use + 1
+    layers.push({ title: "Paint " + (Math.max(0, ...nums) + 1), id: "layer" + n, isVisible: true, isBitmap: !!src.isBitmap, isAvatar: false, frames });
     dd.numTotalLayers = n;
     pos = layers.length - 1;
   } else {

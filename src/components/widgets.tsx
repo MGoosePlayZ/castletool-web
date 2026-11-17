@@ -56,6 +56,17 @@ export function Swatch({ bg, width, cover }: { bg: string; width: number; cover?
     </div>
   );
 }
+/** A card swatch as wide as its container (the deck's 3-per-row grid). */
+export function FitSwatch({ bg, cover }: { bg: string; cover?: string }) {
+  const ref = useRef<HTMLDivElement>(null), [w, setW] = useState(104);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const o = new ResizeObserver(() => setW(Math.max(24, Math.floor(el.clientWidth))));
+    o.observe(el); setW(Math.max(24, Math.floor(el.clientWidth)));
+    return () => o.disconnect();
+  }, []);
+  return <div ref={ref} className="w-full"><Swatch bg={bg} width={w} cover={cover} /></div>;
+}
 export function Avatar({ size = 36, ring = true }: { size?: number; ring?: boolean }) {
   const { avatarUrl, token, user } = useApp();
   const [broken, setBroken] = useState(false);
@@ -227,12 +238,24 @@ function HueRing() {
 }
 
 function ColorPicker({ current, onPick, close }: { current: string; onPick: (v: string) => void; close: () => void }) {
+  const latest = useRef(normHex(current));
+  const ok = () => { close(); onPick(latest.current); };
+  return (
+    <AppDialog heading={null} onClose={ok} closable={false} width={WHEEL + 16}>
+      <ColorPanel current={current} onChange={(v) => { latest.current = v; }} ok={ok} />
+    </AppDialog>
+  );
+}
+
+/** The picker itself. With `ok` it is the dialog's body (close button + OK); without it it is used inline (art editor dropdown)
+ *  and every change goes to `onChange`. */
+export function ColorPanel({ current, onChange, ok }: { current: string; onChange: (v: string) => void; ok?: () => void }) {
   const [h0, s0, v0] = hexToHsv(current);
   const [hsv, setHsv] = useState({ h: h0, s: s0 * 100, v: v0 * 100 }), [tab, setTab] = useState<"rgb" | "hsv">("rgb"), grab = useRef<null | "ring" | "sv">(null);
   const [hexText, setHexText] = useState(hsvToHex(h0, s0, v0));
   const hex = hsvToHex(hsv.h, hsv.s / 100, hsv.v / 100), hueHex = hsvToHex(hsv.h, 1, 1);
   const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  const apply = (n: Partial<typeof hsv>) => { const m = { ...hsv, ...n }; setHsv(m); setHexText(hsvToHex(m.h, m.s / 100, m.v / 100)); };
+  const apply = (n: Partial<typeof hsv>) => { const m = { ...hsv, ...n }, hx = hsvToHex(m.h, m.s / 100, m.v / 100); setHsv(m); setHexText(hx); onChange(hx); };
   const setRgb = (r: number, g: number, b: number) => { const [h, s, v] = hexToHsv("#" + [r, g, b].map((x) => Math.round(x).toString(16).padStart(2, "0")).join("")); apply({ h: s > 0 && v > 0 ? h : hsv.h, s: s * 100, v: v * 100 }); };
   const touch = (e: React.PointerEvent) => {
     const r = e.currentTarget.getBoundingClientRect(), dx = e.clientX - r.left - WHEEL / 2, dy = e.clientY - r.top - WHEEL / 2;
@@ -242,15 +265,13 @@ function ColorPicker({ current, onPick, close }: { current: string; onPick: (v: 
   };
   const mid = WHEEL / 2 - RING / 2, a = (hsv.h * Math.PI) / 180, ringX = WHEEL / 2 + mid * Math.cos(a) - 9, ringY = WHEEL / 2 + mid * Math.sin(a) - 9;
   const ux = (hsv.s / 100 - 0.5) * DIAMOND, uy = (0.5 - hsv.v / 100) * DIAMOND, c = Math.SQRT1_2, svX = WHEEL / 2 + ux * c - uy * c - 9, svY = WHEEL / 2 + ux * c + uy * c - 9;
-  const ok = () => { close(); onPick(normHex(hexText, hex)); };
   const sh = { boxShadow: "0 0 3px rgba(0,0,0,.6)" };
   return (
-    <AppDialog heading={null} onClose={ok} closable={false} width={WHEEL + 16}>
-      <div className="flex flex-col items-center gap-3" style={{ width: WHEEL + 16 }}>
-        <div className="flex w-full items-center justify-between">
+    <div className="flex flex-col items-center gap-3" style={{ width: ok ? WHEEL + 16 : WHEEL }}>
+        {ok && <div className="flex w-full items-center justify-between">
           <IconButton size={36} onClick={ok}><CI name="close" size={22} /></IconButton>
           <div className="h-9 w-9 rounded-md border" style={{ background: hex, borderColor: SEP }} />
-        </div>
+        </div>}
         <div className="relative touch-none" style={{ width: WHEEL, height: WHEEL }} onPointerDown={(e) => { (e.currentTarget as Element).setPointerCapture(e.pointerId); touch(e); }}
           onPointerMove={(e) => { if (grab.current) touch(e); }} onPointerUp={() => { grab.current = null; }} onPointerCancel={() => { grab.current = null; }}>
           <HueRing />
@@ -281,12 +302,11 @@ function ColorPicker({ current, onPick, close }: { current: string; onPick: (v: 
             if (!/^#?[0-9a-fA-F]{0,6}$/.test(e.target.value)) return;
             setHexText(e.target.value);
             const n = normHex(e.target.value, "");
-            if (n) { const [h, s, v] = hexToHsv(n); setHsv({ h: s > 0 && v > 0 ? h : hsv.h, s: s * 100, v: v * 100 }); }
+            if (n) { const [h, s, v] = hexToHsv(n); setHsv({ h: s > 0 && v > 0 ? h : hsv.h, s: s * 100, v: v * 100 }); onChange(n); }
           }} />
-          <PillButton label="OK" filled onClick={ok} />
+          {ok ? <PillButton label="OK" filled onClick={ok} /> : <div className="h-9 w-9 rounded-md border" style={{ background: hex, borderColor: SEP }} />}
         </div>
       </div>
-    </AppDialog>
   );
 }
 export function openColorPicker(current: string, onPick: (v: string) => void) {
