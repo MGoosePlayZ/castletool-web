@@ -88,7 +88,7 @@ export function moveLayer(d2: any, from: number, to: number) {
 
 function unitBounds(f: any, ppu: number) {
   const xs: number[] = [], ys: number[] = [];
-  for (const s of f.pathDataList || []) {
+  for (const s of (Array.isArray(f.pathDataList) ? f.pathDataList : [])) {
     const p = s.p || [];
     if (p.length >= 4) { xs.push(p[0], p[2]); ys.push(p[1], p[3]); }
   }
@@ -208,7 +208,7 @@ export function sceneBounds(d2: any, idxs: number[]): number[] | null {
   const ppu = +d2.drawData.fillPixelsPerUnit || 1, xs: number[] = [], ys: number[] = [];
   for (const i of idxs) for (const fr of frameItems(d2, i)) {
     if (fr.fillPng) { const b = fr.fillImageBounds || {}; xs.push((b.minX || 0) / ppu, (b.maxX || 0) / ppu); ys.push((b.minY || 0) / ppu, (b.maxY || 0) / ppu); }
-    for (const s of fr.pathDataList || []) for (const [a, b] of segPts(s)) { xs.push(a - 0.14, a + 0.14); ys.push(b - 0.14, b + 0.14); }
+    for (const s of (Array.isArray(fr.pathDataList) ? fr.pathDataList : [])) for (const [a, b] of segPts(s)) { xs.push(a - 0.14, a + 0.14); ys.push(b - 0.14, b + 0.14); }
   }
   return xs.length ? [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] : null;
 }
@@ -230,7 +230,7 @@ export async function drawFrame(cv: HTMLCanvasElement, d2: any, i: number, bd: n
       }
     }
     x.lineCap = "round"; x.lineJoin = "round"; x.lineWidth = Math.max(1, 0.28 * k);
-    for (const s of fr.pathDataList || []) {
+    for (const s of (Array.isArray(fr.pathDataList) ? fr.pathDataList : [])) {
       const p = segPts(s);
       if (p.length < 2) continue;
       const c = s.c || [0, 0, 0, 1];

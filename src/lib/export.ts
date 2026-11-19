@@ -73,7 +73,7 @@ export async function exportLayer(d2: any, layerId: string): Promise<LayerExport
   const grow = (a: number, b: number, c: number, d: number) => { x0 = Math.min(x0, a); y0 = Math.min(y0, b); x1 = Math.max(x1, c); y1 = Math.max(y1, d); };
   for (const f of picked) {
     if (f.fillPng) { const b = f.fillImageBounds || {}; grow((b.minX || 0) * (k / ppu), (b.minY || 0) * (k / ppu), (b.maxX || 0) * (k / ppu), (b.maxY || 0) * (k / ppu)); }
-    for (const s of f.pathDataList || []) for (const [a, b] of segPts(s)) { const r = (STROKE_UNITS / 2) * k; grow(a * k - r, b * k - r, a * k + r, b * k + r); }
+    for (const s of (Array.isArray(f.pathDataList) ? f.pathDataList : [])) for (const [a, b] of segPts(s)) { const r = (STROKE_UNITS / 2) * k; grow(a * k - r, b * k - r, a * k + r, b * k + r); }
   }
   if (!(x1 > x0) || !(y1 > y0)) throw new OpError("This layer is empty. Nothing to export.");
   const ox = Math.floor(x0), oy = Math.floor(y0), w = Math.max(1, Math.ceil(x1) - ox), h = Math.max(1, Math.ceil(y1) - oy);
@@ -90,7 +90,7 @@ export async function exportLayer(d2: any, layerId: string): Promise<LayerExport
       }
     }
     x.lineCap = "round"; x.lineJoin = "round"; x.lineWidth = Math.max(1, STROKE_UNITS * k);
-    for (const s of f.pathDataList || []) {
+    for (const s of (Array.isArray(f.pathDataList) ? f.pathDataList : [])) {
       const p = segPts(s);
       if (p.length < 2) continue;
       const c = s.c || [0, 0, 0, 1];

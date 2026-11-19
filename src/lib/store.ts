@@ -182,18 +182,62 @@ export async function ensureOnline(): Promise<boolean> {
 
 let loginCancel = false;
 export const cancelLogin = () => { loginCancel = true; };
+function applySignedIn(user: any) {
+  set({ token: api.getToken(), user: { userId: user.userId, username: user.username || "" },
+    avatarUrl: user.photo?.avatarUrl || user.photo?.smallAvatarUrl || null, online: true });
+  persistUser();
+  try { state.avatarUrl ? localStorage.setItem("ctw.avatar", state.avatarUrl) : null; } catch { /* ignore */ }
+  globalAt = 0;
+  void refreshProfile();
+  void refreshGlobal(true);
+}
+
+export interface CastleLoginUi { url: string | null; blocked: boolean; closed: boolean }
+/** "Sign in with Castle". `win` must be opened by the caller synchronously inside the tap (a popup opened after an await is what gets blocked):
+ *  it is pointed at Castle's sign-in page as soon as Castle hands out the link. If there is no window (blocked), the link is handed to `ui` so
+ *  the person can tap it (a real tap is never blocked). Polls until the Castle tab approves the sign-in, up to 10 minutes. */
+export async function signInCastle(win: Window | null, ui: (s: CastleLoginUi) => void): Promise<boolean> {
+  loginCancel = false;
+  const dead = () => { try { return !win || win.closed; } catch { return true; } };
+  const shut = () => { try { win?.close(); } catch { /* ignore */ } };
+  let blocked = dead(), closedShown = false;
+  ui({ url: null, blocked, closed: false });
+  try {
+    const { pollToken, url, verifier } = await api.startCastleLogin();
+    if (loginCancel) { shut(); return false; }
+    if (!dead()) { try { win!.location.href = url; } catch { blocked = true; } } else blocked = true;
+    ui({ url, blocked, closed: false });
+    const t0 = Date.now();
+    while (!loginCancel && Date.now() - t0 < 10 * 60_000) {
+      await new Promise((r) => setTimeout(r, 1000));
+      if (loginCancel) break;
+      let user: any = null;
+      try { user = await api.pollCastleLogin(pollToken, verifier); } catch { /* not approved yet (or offline for a moment): keep polling */ }
+      if (user) {
+        if (loginCancel) { api.setToken(null); break; }
+        shut();
+        applySignedIn(user);
+        return true;
+      }
+      if (!blocked && !closedShown && dead()) { closedShown = true; ui({ url, blocked, closed: true }); }
+    }
+    shut();
+    if (!loginCancel) toast("Castle sign-in timed out. Try again.", true);
+    return false;
+  } catch (e) {
+    shut();
+    if (e instanceof api.OfflineError) set({ online: false });
+    log(`error: ${errorMessage(e)}`);
+    toast(errorMessage(e), true);
+    return false;
+  }
+}
 export async function signInPassword(username: string, password: string): Promise<boolean> {
   loginCancel = false;
   try {
     const user = await api.loginPassword(username.trim(), password);
     if (loginCancel) { api.setToken(null); return false; }
-    set({ token: api.getToken(), user: { userId: user.userId, username: user.username || "" },
-      avatarUrl: user.photo?.avatarUrl || user.photo?.smallAvatarUrl || null, online: true });
-    persistUser();
-    try { state.avatarUrl ? localStorage.setItem("ctw.avatar", state.avatarUrl) : null; } catch { /* ignore */ }
-    globalAt = 0;
-    void refreshProfile();
-    void refreshGlobal(true);
+    applySignedIn(user);
     return true;
   } catch (e) {
     if (e instanceof api.OfflineError) set({ online: false });

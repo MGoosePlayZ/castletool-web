@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { PillButton, Minor, Title } from "@/components/widgets";
 import { CASTLE_LINKS, DISCLAIMER, MAJOR } from "@/lib/theme";
-import { signInPassword, cancelLogin, setSetting, get } from "@/lib/store";
+import { buttonVariants } from "@/components/ui/button";
+import { signInPassword, signInCastle, cancelLogin, setSetting, get, toast, type CastleLoginUi } from "@/lib/store";
 
 export function FooterLinks() {
   return (
@@ -22,6 +23,37 @@ const Eye = ({ off }: { off: boolean }) => (
     <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" />{off && <path d="M3 3l18 18" />}
   </svg>
 );
+
+/** "Sign in with Castle": opens Castle's own sign-in page (the one castle-cli uses) in a new tab: works for accounts made with Google, which have no password. */
+function CastleSignIn({ onDone, disabled }: { onDone: () => void; disabled: boolean }) {
+  const [ui, setUi] = useState<CastleLoginUi | null>(null), [logoOk, setLogoOk] = useState(true), winRef = useRef<Window | null>(null);
+  const go = async () => {
+    // Open the tab right now, inside the tap, while the browser still counts it as a tap's doing. It is pointed at Castle once the link arrives.
+    let win: Window | null = null;
+    try {
+      win = window.open("about:blank", "_blank");
+      if (win) { win.document.title = "Castle"; win.document.body.style.cssText = "background:#000;color:#fff;font-family:sans-serif;padding:24px"; win.document.body.textContent = "Opening Castle sign-in…"; }
+    } catch { /* ignore */ }
+    winRef.current = win;
+    const ok = await signInCastle(win, setUi);
+    setUi(null);
+    if (ok) onDone();
+  };
+  const stop = () => { cancelLogin(); try { winRef.current?.close(); } catch { /* ignore */ } setUi(null); };
+  const copy = async () => { try { await navigator.clipboard.writeText(ui!.url!); toast("Link copied."); } catch { toast("Couldn't copy the link.", true); } };
+  const logo = logoOk ? <img src={`${import.meta.env.BASE_URL}icons/castle-logo.png`} width={18} height={18} alt="" onError={() => setLogoOk(false)} /> : undefined;
+  if (!ui) return <PillButton label="Sign in with Castle" width={280} disabled={disabled} icon={logo} onClick={() => void go()} />;
+  return (
+    <div className="flex flex-col items-center gap-2" style={{ width: 280 }}>
+      {ui.blocked && <Minor size={12} className="text-center">Your browser blocked the Castle sign-in window. Tap the button to open it. To skip this step next time, allow pop-ups for this site.</Minor>}
+      {!ui.blocked && !ui.closed && <Minor size={12} className="text-center">{ui.url ? "Finish signing in on the Castle tab. This page signs in by itself afterwards." : "Contacting Castle…"}</Minor>}
+      {!ui.blocked && ui.closed && <Minor size={12} className="text-center">The Castle tab was closed. Open it again to finish signing in.</Minor>}
+      {ui.url && (ui.blocked || ui.closed) && <a href={ui.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "default" })} style={{ width: 280 }}>Open Castle sign-in</a>}
+      {ui.url && ui.blocked && <PillButton label="Copy link" width={280} onClick={() => void copy()} />}
+      <PillButton label="Cancel" width={280} onClick={stop} />
+    </div>
+  );
+}
 
 /** Username / password / Sign in. Shared by the first-run screen and Profile. */
 export function SignInForm({ onDone }: { onDone: () => void }) {
@@ -43,6 +75,7 @@ export function SignInForm({ onDone }: { onDone: () => void }) {
       </div>
       <PillButton label="Sign in" filled busy={busy} width={280} onClick={() => void go()} />
       {busy && <PillButton label="Cancel" width={280} onClick={() => { cancelLogin(); setBusy(false); }} />}
+      <CastleSignIn onDone={onDone} disabled={busy} />
     </form>
   );
 }

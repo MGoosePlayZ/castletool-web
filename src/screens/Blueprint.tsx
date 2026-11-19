@@ -228,16 +228,34 @@ function MusicPanel({ deckId, cardId, entryId }: P) {
 }
 
 // ── AUDIO ──────────────────────────────────────────────────────────────
+function SoundSpeed({ onChange }: { onChange: (v: number) => void }) {
+  const [speed, setSpeed] = useState(0);
+  const pick = (i: number) => { setSpeed(i); onChange(i); };
+  return (
+    <div className="flex flex-col gap-2">
+      <Minor>Speed up</Minor>
+      <div className="flex gap-1.5">{AUDIO_SPEEDS.map((k, i) => <PillButton key={k} label={`${k}x`} filled={speed === i} onClick={() => pick(i)} className="min-w-0 flex-1 px-0" />)}</div>
+      {speed > 0 && <InfoNote>{`The sound is sped up ${AUDIO_SPEEDS[speed]}x (samples are dropped, which bit-crushes it), then played back at 1/${AUDIO_SPEEDS[speed]} speed. Each 30 second segment holds ${AUDIO_SPEEDS[speed]}x more of the sound, so fewer segments are needed.`}</InfoNote>}
+    </div>
+  );
+}
+
 function AudioPanel({ deckId, cardId, entryId }: P) {
-  const rc = cardOf(deckId, cardId)!, urls = audioUrls(ops.libraryOf(rc)[entryId]), [speed, setSpeed] = useState(0);
+  const rc = cardOf(deckId, cardId)!, urls = audioUrls(ops.libraryOf(rc)[entryId]);
   const upload = async () => {
     if (!(await ensureOnline())) return;
     const f = await pickFile(AUDIO_PICK);
     if (!f) return;
     let info: ops.MediaInfo;
     try { info = await ops.inspectMedia(f); } catch (e: any) { toast(e?.message || String(e), true); return; }
-    const res = await editAsync(deckId, cardId, "Uploading audio", (task, c, rec) => ops.importAudio({ rc: c, rec, entryId }, info, task, speed));
-    if (res) toast(res.length === 1 ? "Audio added." : `Added ${res.length} actors.`);
+    const run = async (speed: number) => {
+      const res = await editAsync(deckId, cardId, "Uploading audio", (task, c, rec) => ops.importAudio({ rc: c, rec, entryId }, info, task, speed));
+      if (res) toast(res.length === 1 ? "Audio added." : `Added ${res.length} actors.`);
+    };
+    const chosen = { v: 0 };
+    showDialog("Import sound", () => <SoundSpeed onChange={(v) => { chosen.v = v; }} />, {
+      actions: (close) => <TextAction label="Import" onClick={() => { close(); void run(chosen.v); }} />,
+    });
   };
   return (
     <div className="flex flex-col gap-2">
@@ -247,13 +265,8 @@ function AudioPanel({ deckId, cardId, entryId }: P) {
           <span className="min-w-0 flex-1 select-text break-all text-xs">{u.replace(/\?.*$/, "").replace(/\/+$/, "").split("/").pop()}</span>
         </div>
       )) : <div className="flex h-[120px] items-center justify-center"><CI name="unmuted" size={30} color={MINOR1} /></div>}
-      <div className="mt-3.5 flex flex-col gap-1.5">
-        <Minor>Speed up</Minor>
-        <div className="flex gap-1.5">{AUDIO_SPEEDS.map((k, i) => <PillButton key={k} label={`${k}x`} filled={speed === i} onClick={() => setSpeed(i)} className="min-w-0 flex-1 px-0" />)}</div>
-      </div>
-      <div className="mt-2 flex"><PillButton label="Upload" filled icon={<CI name="upload" size={18} color={BG} />} onClick={() => void upload()} /></div>
+      <div className="mt-3.5 flex"><PillButton label="Upload" filled icon={<CI name="upload" size={18} color={BG} />} onClick={() => void upload()} /></div>
       <InfoNote>Audio is split into 30 second segments</InfoNote>
-      {speed > 0 && <InfoNote>{`The sound is sped up ${AUDIO_SPEEDS[speed]}x (samples are dropped, which bit-crushes it), then played back at 1/${AUDIO_SPEEDS[speed]} speed. Each 30 second segment holds ${AUDIO_SPEEDS[speed]}x more of the sound, so fewer segments are needed.`}</InfoNote>}
       <LogBox />
     </div>
   );

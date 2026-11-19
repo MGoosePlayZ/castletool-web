@@ -1,22 +1,24 @@
 // Card bar (undo / redo / settings, Save) shared by the card screen and the blueprint screen, plus the card dialogs.
 import { useEffect } from "react";
 import { CI, ColorField, IconButton, NumberBox, PillButton, Swatch, TextAction, showDialog } from "./widgets";
-import { DANGER, MAJOR, MINOR1, SEP, WARN } from "@/lib/theme";
+import { DANGER, MAJOR, MINOR1, SEP } from "@/lib/theme";
 import { useApp, undo, redo, canUndo, canRedo, cardBytes, cardDirty, saveCard, isSaving, editQuick, editAsync, cardOf, discardCard, toast, ensureOnline, setLeaveGuard, requestBack, back } from "@/lib/store";
 import { cardBackground, cardTempo, setCardBackground, setCardTempo } from "@/lib/ops";
 import { pickFile } from "@/lib/pick";
 import { SCENE_UPLOAD_LIMIT } from "@/lib/api";
 import * as api from "@/lib/api";
+import { openUsageDialog } from "./UsageDialog";
+import { sizeColor } from "@/lib/usage";
 
 const SIDE = 88;
 
 /** How full the card is against Castle's 50 MB upload limit: white under 50%, yellow over 50%, red over 75%. */
 function SizeMeter({ deckId, cardId }: { deckId: string; cardId: string }) {
   const bytes = cardBytes(deckId, cardId), frac = bytes / SCENE_UPLOAD_LIMIT, pct = Math.round(frac * 100);
-  const color = frac > 0.75 ? DANGER : frac > 0.5 ? WARN : MAJOR, size = 32, stroke = 3, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  const color = sizeColor(frac), size = 32, stroke = 3, r = (size - stroke) / 2, c = 2 * Math.PI * r;
   const label = `${(bytes / 1048576).toFixed(2)} MB of ${SCENE_UPLOAD_LIMIT / 1048576} MB`;
   return (
-    <div className="flex shrink-0 items-center justify-center" style={{ width: 36, height: 40 }} title={label} aria-label={label} role="img">
+    <button type="button" onClick={() => openUsageDialog(deckId, cardId)} className="flex shrink-0 items-center justify-center rounded-full" style={{ width: 36, height: 40 }} title={label} aria-label={`${label}. Show usage`}>
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={SEP} strokeWidth={stroke} />
@@ -24,7 +26,7 @@ function SizeMeter({ deckId, cardId }: { deckId: string; cardId: string }) {
         </svg>
         <span className="absolute inset-0 flex items-center justify-center font-bold leading-none" style={{ color, fontSize: pct > 99 ? 8 : 9 }}>{`${Math.min(pct, 999)}%`}</span>
       </div>
-    </div>
+    </button>
   );
 }
 

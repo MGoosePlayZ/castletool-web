@@ -88,6 +88,26 @@ export async function loginPassword(usernameOrEmail: string, password: string) {
   return user;
 }
 
+const b64url = (b: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+/** "Sign in with Castle": the same flow castle-cli uses. Castle gives a URL to open and a poll token; the browser sends sha256(verifier) up front and the verifier when polling. */
+export async function startCastleLogin(): Promise<{ pollToken: string; url: string; verifier: string }> {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  const d = await gql(`mutation($challenge: String!) { startCLILogin(challenge: $challenge) { pollToken url } }`, { challenge });
+  const r = d?.startCLILogin;
+  if (!r?.url || !r?.pollToken) throw new CastleAPIError("Castle didn't return a sign-in link.");
+  return { pollToken: r.pollToken, url: r.url, verifier };
+}
+/** The signed-in user once the Castle tab approved the sign-in; null while still waiting (Castle answers with an error until then). */
+export async function pollCastleLogin(pollToken: string, verifier: string) {
+  const d = await gql(`query($pollToken: String!, $verifier: String!) { pollForCLILogin(pollToken: $pollToken, verifier: $verifier) { ${USER_FIELDS} } }`, { pollToken, verifier });
+  const u = d?.pollForCLILogin;
+  if (!u?.token) return null;
+  setToken(u.token);
+  return u;
+}
+
 /** Current user; null when not signed in or the token is rejected. Throws OfflineError when Castle can't be reached. */
 export async function me() {
   if (!token) return null;
