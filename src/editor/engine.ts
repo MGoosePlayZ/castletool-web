@@ -326,7 +326,9 @@ if(!dd.firstChild)dd.innerHTML='<div class="tabs" id="ddt"></div><div id="ddb"><
 $('#ddt').innerHTML=ddTabs();const b=$('#ddb');
 if(S.tab=='pal'){if($('#pkh'))host.pickHost(null);b.innerHTML=ddPal()}
 else if(!$('#pkh')){b.innerHTML='<div id="pkh" class="pkh"></div>';host.pickHost($('#pkh'))}}
-const lnHtml=(first,end)=>`<div class="ai">${first&&end?'':`<img class="a1" src="${host.arrow1}" alt="">`}${end?`<img class="a2" src="${host.arrow2}" alt="">`:''}</div>`;
+// link arrows: decoded once up front; sync decoding so a re-created <img> paints at once instead of flashing
+let DRH='';[host.arrow1,host.arrow2].forEach(u=>{const i=new Image();i.decoding='sync';i.src=u});
+const lnHtml=(first,end)=>`<div class="ai">${first&&end?'':`<img class="a1" decoding="sync" src="${host.arrow1}" alt="">`}${end?`<img class="a2" decoding="sync" src="${host.arrow2}" alt="">`:''}</div>`;
 function drHtml(){const F=S.F;let h=`<div class="dh">${B('add','nl')}${B('left-arrow','tog','',0,'n',S.open?-90:90)}</div><div class="gw"><div class="g" style="grid-template-columns:112px repeat(${F},38px) 38px">`;
 for(let i=S.L.length-1;i>=0;i--){const l=S.L[i];h+=`<div class="k ${i==S.sel?'on':''}"><button class="b s n" data-a="eye" data-d="${i}">${ic(l.vis?'eye':'eyeoff',18)}</button><span data-a="lay" data-d="${i}">${l.name}</span></div>`;
 for(let f=0;f<F;f++){const sel=i==S.sel&&f==S.cf,m=linked(l,f)?lnHtml(!linked(l,f-1),!linked(l,f+1)):`<canvas class="th" width="76" height="76" data-t="${i},${f}"></canvas>`;h+=`<div class="c ${i==S.sel?'r ':''}${sel?'on':''}" data-a="cell" data-d="${i},${f}">${m}${sel?`<span class="dots">${ic('dots',13)}</span>`:''}</div>`}h+='<div></div>'}
@@ -360,7 +362,7 @@ $('#ur').innerHTML=D(`<button class="b" data-a="undo" ${S.hu?'':'disabled'}>${ic
 $('#tools').innerHTML=tools().length?D(tools().map(t=>B(TI[t]||t,'tool',t,S.tool==t)).join('')):'';$('#sub').innerHTML=subHtml(ty);
 $('#top').innerHTML=add?`<button class="sw" data-a="sw" style="background:${S.color}"></button>`+D(B('pipette','pip','',S.pip)):'';
 ddUpdate(!!(add&&S.dd));
-const g=$('#dr .gw'),sl=g&&[g.scrollLeft,g.scrollTop];$('#dr').className=S.open?'':'cl';$('#dr').innerHTML=drHtml();const g2=$('#dr .gw');if(sl){g2.scrollLeft=sl[0];g2.scrollTop=sl[1]}
+const g=$('#dr .gw'),sl=g&&[g.scrollLeft,g.scrollTop];$('#dr').className=S.open?'':'cl';const dh=drHtml();if(dh!==DRH||!$('#dr .gw')){DRH=dh;$('#dr').innerHTML=dh;const g2=$('#dr .gw');if(sl){g2.scrollLeft=sl[0];g2.scrollTop=sl[1]}}
 const po=$('#pop'),ph=popHtml(),ae=document.activeElement,typing=n=>ae&&n.contains(ae)&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);po.hidden=!ph;if(!typing(po))po.innerHTML=ph;if(S.pop){if(['spc','wheel','frm','font'].includes(S.pop.k)){po.style.left='auto';po.style.right=(innerWidth-S.pop.r.left+6)+'px';po.style.top=Math.max(6,S.pop.r.top)+'px';po.style.bottom='auto'}else{po.style.right='auto';po.style.top='auto';po.style.left=Math.max(6,Math.min(S.pop.r.left,innerWidth-200))+'px';po.style.bottom=(innerHeight-S.pop.r.top+6)+'px'}}
 const dm=$('#mod');dm.hidden=!S.mod;dm.innerHTML=modHtml();render();thumbs()}
 function fixTool(){const t=tools();if(t.length&&!t.includes(S.tool))S.tool=t[0]}
