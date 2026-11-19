@@ -461,6 +461,13 @@ export async function deleteDeck(deckId: string) {
 const saving = new Set<string>();
 export const isSaving = (d: string, c: string) => saving.has(d + "/" + c);
 
+/** Text / picture primitives the art editor keeps next to the baked paint (drawData.artEditor) become plain paint when the card is saved. */
+function stripArtEditor(o: any) {
+  if (!o || typeof o !== "object") return;
+  if (Array.isArray(o)) { for (const v of o) stripArtEditor(v); return; }
+  if (o.drawData && typeof o.drawData === "object") delete o.drawData.artEditor;
+  for (const k in o) if (o[k] && typeof o[k] === "object") stripArtEditor(o[k]);
+}
 export async function saveCard(deckId: string, cardId: string): Promise<boolean> {
   const key = deckId + "/" + cardId;
   if (saving.has(key)) return false;
@@ -475,6 +482,7 @@ export async function saveCard(deckId: string, cardId: string): Promise<boolean>
     if (!card) throw new OpError(`Card ${cardId} isn't in this deck.`);
     task.say("Checking size", 0.05);
     const snap = structuredClone(rc.scene?.snapshot || {});
+    stripArtEditor(snap);
     if (snap.sceneProperties?.backgroundColor) snap.sceneProperties.backgroundColor.a = 1;   // the CLI forces a = 1
     const payload = { snapshot: snap };
     task.say("Preparing card", 0.1);
@@ -495,6 +503,7 @@ export async function saveCard(deckId: string, cardId: string): Promise<boolean>
     const res = await api.updateCardAndDeckV2(deckInput, cardInput);
     if (res.deck.deckId !== rec.deck.deckId || res.card.cardId !== cardId) throw new api.CastleAPIError("Server returned unexpected ids.");
     rc.coverFileId = null;
+    stripArtEditor(rc.scene?.snapshot);            // saved: text and pictures are paint from now on
     rc.baseline = snapOf(rc);
     rc.dirty = false;
     sessions.delete(deckId + "/" + cardId);

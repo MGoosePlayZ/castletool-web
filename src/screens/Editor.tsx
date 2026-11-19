@@ -1,15 +1,17 @@
 // Art editor screen. The editor itself is src/editor/engine.ts (a port of the editor prototype); this file only connects it to the
-// app: load the blueprint's drawing, save every finished edit as its own undo step, undo/redo, the image importer, and the colour
+// app: load the blueprint's drawing, save every finished edit as its own undo step, undo/redo, the file pickers, and the colour
 // picker inside the dropdown.
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "@/editor/editor.css";
 import { createEditor, type EditorApi } from "@/editor/engine";
 import { ColorPanel } from "@/components/widgets";
-import { startMediaImport } from "@/screens/Blueprint";
-import { back, canRedo, canUndo, cardOf, editQuick, log, redo, undo, useApp } from "@/lib/store";
+import { IMAGE_PICK, loadImgSrc, loadImgSrcs } from "@/editor/sources";
+import { registerFont } from "@/lib/fonts";
+import { pickFile, pickFiles, saveBlob } from "@/lib/pick";
+import { back, canRedo, canUndo, cardOf, editQuick, log, redo, toast, undo, useApp } from "@/lib/store";
 import * as ops from "@/lib/ops";
-import { NEW, OpError, d2Of, rehash } from "@/lib/drawing";
+import { OpError, d2Of, rehash } from "@/lib/drawing";
 
 const ASSET = (n: string) => `${import.meta.env.BASE_URL}icons/${n}`;
 
@@ -36,6 +38,8 @@ export function EditorScreen({ deckId, cardId, entryId }: { deckId: string; card
         let d2 = d2Of(bp);
         if (!d2) d2 = bp.actorBlueprint.components.Drawing2 = blankDrawing();
         E.toDraw(d2.drawData);
+        const fps = E.fps();                     // an animated image / video was placed: the drawing plays at its speed
+        if (fps) { d2.framesPerSecond = fps; d2.playMode = "loop"; d2.loop = true; }
         rehash(d2);
       });
       if (ok) E.clean();
@@ -53,7 +57,27 @@ export function EditorScreen({ deckId, cardId, entryId }: { deckId: string; card
       exit: () => { void flush().then((ok) => { if (ok) back(); }); },      // back goes to the blueprint, not the deck
       changed: () => { clearTimeout(timer); timer = window.setTimeout(() => void flush(), 120); },
       undo: () => void step(undo), redo: () => void step(redo),
-      importImage: () => { void startMediaImport(deckId, cardId, entryId, NEW, { before: flush, done: () => load(true) }); },   // the import dialog opens over the editor
+      pickImages: async () => {
+        const files = await pickFiles(IMAGE_PICK);
+        if (!files.length) return null;
+        try { return await loadImgSrcs(files); } catch (e: any) { toast(e?.message || String(e), true); return null; }
+      },
+      reloadImage: async (src, every) => { try { return await loadImgSrc(src.file, src.cat, every); } catch (e: any) { toast(e?.message || String(e), true); return null; } },
+      loadImage: async (r) => {
+        try {
+          const bin = atob(r.b64), bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          return await loadImgSrc(new File([bytes], r.name), r.cat as any, r.every || 1, !!r.single);
+        } catch { return null; }
+      },
+      pickFont: async () => {
+        const f = await pickFile(["ttf", "otf", "woff", "eot"]);
+        if (!f) return null;
+        try { return await registerFont(f); } catch { toast("Couldn't read that font.", true); return null; }
+      },
+      save: (name, blob) => saveBlob(name, blob),
+      notify: (msg, bad) => toast(msg, bad),
+      fps: () => +d2Of(ops.libraryOf(cardOf(deckId, cardId)!)[entryId])?.framesPerSecond || 4,
       pickHost: setPickEl,
     });
     api.current = E;

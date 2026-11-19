@@ -272,16 +272,15 @@ export async function extractVideoFrames(f: File, w: number, h: number, every = 
 }
 
 // ── quantize (median cut, like PIL's default) ──────────────────────────
-export async function quantizeFrame(b64: string, colors: number): Promise<string> {
-  const img = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = "data:image/png;base64," + b64; });
-  const cv = makeCanvas(img.width, img.height), x = cv.getContext("2d", { willReadFrequently: true })!;
-  x.drawImage(img, 0, 0);
-  const id = x.getImageData(0, 0, cv.width, cv.height), d = id.data;
+/** Median-cut colour reduction, in place on RGBA bytes (alpha is left alone). Returns false when there were already few enough colours.
+ *  `opaqueOnly` ignores (and never touches) pixels with alpha < 128, so a transparent background doesn't take a palette slot. */
+export function quantizeData(d: Uint8ClampedArray, colors: number, opaqueOnly = false): boolean {
   const counts = new Map<number, number>();
-  for (let i = 0; i < d.length; i += 4) { const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]; counts.set(k, (counts.get(k) || 0) + 1); }
-  if (counts.size <= colors) return b64;
+  let total = 0;
+  for (let i = 0; i < d.length; i += 4) { if (opaqueOnly && d[i + 3] < 128) continue; total++; const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]; counts.set(k, (counts.get(k) || 0) + 1); }
+  if (counts.size <= colors) return false;
   type Box = { cols: number[]; n: number };
-  let boxes: Box[] = [{ cols: [...counts.keys()], n: img.width * img.height }];
+  let boxes: Box[] = [{ cols: [...counts.keys()], n: total }];
   const range = (b: Box) => {
     let mn = [255, 255, 255], mx = [0, 0, 0];
     for (const k of b.cols) for (let c = 0; c < 3; c++) { const v = (k >> (16 - 8 * c)) & 255; if (v < mn[c]) mn[c] = v; if (v > mx[c]) mx[c] = v; }
@@ -306,7 +305,15 @@ export async function quantizeFrame(b64: string, colors: number): Promise<string
     const p = (Math.round(r / n) << 16) | (Math.round(g / n) << 8) | Math.round(bl / n);
     for (const k of b.cols) map.set(k, p);
   }
-  for (let i = 0; i < d.length; i += 4) { const p = map.get((d[i] << 16) | (d[i + 1] << 8) | d[i + 2])!; d[i] = p >> 16; d[i + 1] = (p >> 8) & 255; d[i + 2] = p & 255; }
+  for (let i = 0; i < d.length; i += 4) { if (opaqueOnly && d[i + 3] < 128) continue; const p = map.get((d[i] << 16) | (d[i + 1] << 8) | d[i + 2])!; d[i] = p >> 16; d[i + 1] = (p >> 8) & 255; d[i + 2] = p & 255; }
+  return true;
+}
+export async function quantizeFrame(b64: string, colors: number): Promise<string> {
+  const img = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = "data:image/png;base64," + b64; });
+  const cv = makeCanvas(img.width, img.height), x = cv.getContext("2d", { willReadFrequently: true })!;
+  x.drawImage(img, 0, 0);
+  const id = x.getImageData(0, 0, cv.width, cv.height);
+  if (!quantizeData(id.data, colors)) return b64;
   x.putImageData(id, 0, 0);
   return canvasPng(cv);
 }

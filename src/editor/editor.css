@@ -4,7 +4,7 @@
 @font-face { font-family: EdMDX; src: url(/fonts/EditorMDIExtra.ttf); }
 .ae { --bg:#000; --fg:#fff; --mn:#888; --sp:#444; position:fixed; inset:0; z-index:30; background:#000; color:#fff; overflow:hidden;
   font:14px DMSans, system-ui, sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; overscroll-behavior:none; color-scheme:dark; }
-.ae input { user-select:text; -webkit-user-select:text; }
+.ae input, .ae textarea, .ae select { user-select:text; -webkit-user-select:text; }
 .ae .fa { font-family:EdFA; display:inline-block; line-height:1; width:1em; height:1em; text-align:center; }
 .ae .mdx { font-family:EdMDX; display:inline-block; line-height:1; width:1em; height:1em; text-align:center; }
 .ae .pkh { padding:4px 8px 12px; display:flex; justify-content:center; }
@@ -85,3 +85,21 @@
 .ae .sl .h.pl u{display:none}
 .ae .sl .h.pl::after{content:"+";color:#000;font:600 26px/1 DMSans,system-ui,sans-serif}
 .ae .ai .a2:only-child{margin-left:0}
+
+/* text / image layers: properties panel, canvas menu, dialogs */
+.ae .nf{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ae .nf>span{font-size:11px;color:var(--mn)}
+.ae .nf input,.ae .nf select,.ae .box textarea{background:var(--bg);color:var(--fg);border:1px solid var(--sp);border-radius:10px;padding:7px 8px;width:100%;min-width:0;font:inherit}
+.ae .box textarea{resize:none}
+.ae .tb{background:var(--bg);color:var(--fg);border:1px solid var(--sp);border-radius:10px;padding:7px 10px;font:inherit;font-size:12px;cursor:pointer}
+.ae .tb.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.ae .pop .nf{padding:4px 6px}
+.ae .pop .nl{padding:8px 6px 4px;font-size:11px;color:var(--mn)}
+.ae .bgs{display:flex;gap:8px;padding:2px 6px 8px}
+.ae .bgs .bg{width:40px;height:40px;border-radius:10px;border:1px solid var(--sp);cursor:pointer;padding:0}
+.ae .bgs .bg.on{border:2px solid var(--fg);box-shadow:0 0 0 1px var(--bg) inset}
+.ae .pop .ir{display:flex;align-items:center;gap:8px;padding:4px 6px}
+.ae .pop .ir .ii{width:26px;height:26px;display:grid;place-items:center;flex:none}
+.ae .pop .ir input{width:96px}
+.ae .pop .fl{display:flex;flex-direction:column;gap:4px;max-height:min(50vh,320px);overflow-y:auto;touch-action:pan-y}
+.ae .pop .fl .tb{text-align:left}

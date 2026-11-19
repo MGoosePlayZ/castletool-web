@@ -1,4 +1,5 @@
 // MIDI → Castle music (port of CTA's collect_midi_tracks / build_music).
+import { uuid } from "./uuid";
 import { parseMidi } from "midi-file";
 import { r5 } from "./drawing";
 import { Prog, NOOP } from "./tasks";
@@ -11,7 +12,7 @@ function makeColor() {
   const a = sat * Math.min(l, 1 - l), f = (n: number) => l - a * Math.max(-1, Math.min((n + h / 30) % 12 - 3, Math.min(9 - ((n + h / 30) % 12), 1)));
   return { r: r5(f(0)), g: r5(f(8)), b: r5(f(4)), a: 1.0 };
 }
-const uuid = () => crypto.randomUUID();
+
 
 export const CASTLE_DRUMS: Record<number, number> = {
   35: 36, 36: 36, 37: 39, 38: 39, 40: 39, 39: 40, 41: 37, 43: 37, 45: 37, 47: 38, 48: 38, 50: 38, 42: 41, 44: 41, 46: 42,

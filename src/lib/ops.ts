@@ -1,11 +1,11 @@
-// Blueprint operations: import media / fonts / MIDI / audio, text props, card settings.
+// Blueprint operations: import media / MIDI / audio, text props, card settings.
 // Port of CTA's blueprint_ops.py + the conversion half of castletool_core.py, working on scene data in memory.
+import { uuid } from "./uuid";
 import type { CardRec, DeckRec } from "./db";
 import { OpError, applyDrawing, d2Of, drawFrame, makeCanvas, sceneBounds, layersOf, frameCount } from "./drawing";
 import * as img from "./imaging";
 import { svgDims, svgToPathData, vectorDrawing, rasterizeSvg, needsFallbackColor, parseSvgFile, SVG_PPU } from "./svg";
 import { gatherMedia } from "./archive";
-import { loadFont, vectorFontFrames, renderFontBitmap, fontDrawing, fontCodepoints, fontHasGlyph, glyphToPathData } from "./fonts";
 import { readMidi, buildMusic, midiBpm, clampVolumeOffset } from "./midi";
 import { attachAudio, attachPcm, pcmToMp3, stripAudioRules, canEncodeMp3 } from "./audio";
 import { renderMusic } from "./synth";
@@ -13,7 +13,7 @@ import { Prog, NOOP } from "./tasks";
 import { getToken } from "./api";
 import { log } from "./store";
 
-const uuid = () => crypto.randomUUID();
+
 export const SVG_UNITS_PER_EM = 10;
 
 // ── blueprint access ───────────────────────────────────────────────────
@@ -321,68 +321,6 @@ export async function importMedia(ctx: Ctx, info: MediaInfo, optsIn: Partial<Med
   return { written, warnings };
 }
 
-// ── fonts ──────────────────────────────────────────────────────────────
-export interface FontOpts { charsets: string[]; custom: string; bitmap: boolean; scale: number; steps: number; px: number; smooth: boolean; color: number[] | null }
-export const DEFAULT_FONT_OPTS: FontOpts = { charsets: [], custom: "", bitmap: false, scale: 1, steps: 16, px: 64, smooth: false, color: null };
-
-export async function previewFont(file: File, o: Partial<FontOpts>): Promise<any | null> {
-  const opts = { ...DEFAULT_FONT_OPTS, ...o }, cps = fontCodepoints(opts);
-  if (!cps.length) return null;
-  const lf = await loadFont(file), sample = [cps[0]], color = opts.color || [1, 1, 1, 1];
-  if (opts.bitmap) {
-    const r = await renderFontBitmap(lf, sample, Math.trunc(+opts.px) || 64, !!opts.smooth, color);
-    return r.frames.length ? img.buildDrawing2(r.frames, 4, r.w, r.h, "still") : null;
-  }
-  if (!fontHasGlyph(lf.font, sample[0])) return null;
-  const { frames, ppu } = vectorFontFrames(lf, sample, Math.max(2, Math.trunc(+opts.steps) || 16), +opts.scale || 1, color);
-  void glyphToPathData;
-  return fontDrawing(frames, ppu, 10);
-}
-
-export async function importFont(ctx: Ctx, info: MediaInfo, o: Partial<FontOpts>, prog: Prog, layer: string | null = null): Promise<ImportResult> {
-  const opts = { ...DEFAULT_FONT_OPTS, ...o }, actor = libraryOf(ctx.rc)[ctx.entryId];
-  ensureComponents(actor);
-  const cps = fontCodepoints(opts);
-  if (!cps.length) throw new OpError("No characters were selected.");
-  const bitmap = !!opts.bitmap, scale = +opts.scale || 1, steps = Math.max(2, Math.trunc(+opts.steps) || 16), px = Math.trunc(+opts.px) || 64, smooth = !!opts.smooth, color = opts.color || [0, 0, 0, 1];
-  if (!(scale > 0)) throw new OpError("Scale must be greater than 0.");
-  if (bitmap && !(px >= 4 && px <= 512)) throw new OpError("Pixels per em must be between 4 and 512.");
-  if (info.category !== "font") throw new OpError(`That is a ${img.CATEGORY_LABELS[info.category]} file; use the matching section.`);
-  let fonts = [];
-  for (const f of info.files) {
-    try { const lf = await loadFont(f); if (!lf.font.numGlyphs) throw new Error("no usable character map."); fonts.push(lf); }
-    catch (e: any) { log(`error: could not read font ${f.name}: ${e?.message || e}`); }
-  }
-  if (!fonts.length) throw new OpError("No readable fonts.");
-  if (layer !== null && fonts.length > 1) { log("warning: a layer holds one font, so only the first one was used."); fonts = fonts.slice(0, 1); }
-  const base = structuredClone(actor), written: string[] = [], warnings: string[] = [];
-  let used = false;
-  for (let fi = 0; fi < fonts.length; fi++) {
-    prog.check();
-    const lf = fonts[fi], lo = fi / fonts.length, hi = (fi + 1) / fonts.length, sub = prog.sub(lo, lo + (hi - lo) * 0.95);
-    log(`Rendering ${cps.length} glyph(s) from ${lf.name}...`);
-    let count = 0, missing = 0, d2: any = null;
-    if (bitmap) {
-      try { const r = await renderFontBitmap(lf, cps, px, smooth, color, sub); count = r.frames.length; missing = r.missing; if (count) d2 = img.buildDrawing2(r.frames, 4, r.w, r.h, "still"); }
-      catch (e: any) { if (e?.name === "Cancelled") throw e; log(`error: ${lf.name}: ${e?.message || e}`); continue; }
-    } else {
-      const r = vectorFontFrames(lf, cps, steps, scale, color, sub);
-      count = r.frames.length; missing = r.missing;
-      if (count) d2 = fontDrawing(r.frames, r.ppu, 10);
-    }
-    if (!count) { log(`error: no requested codepoints have a glyph in ${lf.name}.`); continue; }
-    const [target, isSel] = nextTarget(ctx.rc, actor, base, used, img.stemOf(lf.name));
-    used = true;
-    await putDrawing(target, d2, isSel ? layer : null);
-    if (missing) log(`warning: ${missing} codepoint(s) have no glyph in this font and were skipped.`);
-    log(`Font added: ${count} frame(s), one per glyph.`);
-    if (!isSel) log(`New actor created: ${target.title}`);
-    written.push(target.entryId);
-  }
-  if (!written.length) throw new OpError("Nothing was added.");
-  return { written, warnings };
-}
-
 // ── MIDI → Music ───────────────────────────────────────────────────────
 export async function importMidi(ctx: Ctx, file: File, prog: Prog, volumeOffset = 0) {
   let mid;
@@ -398,7 +336,7 @@ export async function importMidi(ctx: Ctx, file: File, prog: Prog, volumeOffset 
 }
 
 // ── audio ──────────────────────────────────────────────────────────────
-export async function importAudio(ctx: Ctx, info: MediaInfo, prog: Prog): Promise<string[]> {
+export async function importAudio(ctx: Ctx, info: MediaInfo, prog: Prog, speed = 0): Promise<string[]> {
   if (!getToken()) throw new OpError("Sign in first: audio is uploaded to Castle.");
   const actor = libraryOf(ctx.rc)[ctx.entryId];
   ensureComponents(actor);
@@ -410,7 +348,7 @@ export async function importAudio(ctx: Ctx, info: MediaInfo, prog: Prog): Promis
     prog.check();
     const f = info.files[fi], target = used ? forkActor(ctx.rc, base, img.stemOf(f.name)) : actor, isSel = !used;
     if (!isSel) stripAudioRules(target);
-    const res = await attachAudio(target, f, false, prog.sub(fi / info.files.length, (fi + 1) / info.files.length), (m) => log(m));
+    const res = await attachAudio(target, f, false, prog.sub(fi / info.files.length, (fi + 1) / info.files.length), (m) => log(m), speed);
     if (!res.ok) { if (!isSel) delete libraryOf(ctx.rc)[target.entryId]; continue; }
     used = true;
     if (!isSel) log(`New actor created: ${target.title}`);

@@ -1,14 +1,11 @@
 // Settings for a picked media file, with a preview that follows the settings (port of CTA's ImportDialog).
 import { useEffect, useRef, useState } from "react";
 import { CI, ColorField, InfoNote, Minor, NumberBox, PillButton, TextAction, showDialog } from "./widgets";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OpError, drawFrame, makeCanvas, sceneBounds } from "@/lib/drawing";
 import * as ops from "@/lib/ops";
-import { charsetNames } from "@/lib/fonts";
 import { editAsync, cardOf, toast, log } from "@/lib/store";
 import { Task } from "@/lib/tasks";
 
@@ -33,14 +30,14 @@ function SwitchRow({ label, value, onChange }: { label: string; value: boolean; 
 
 function Body({ deckId, cardId, entryId, file, info, layer, onImported, close }: { deckId: string; cardId: string; entryId: string; file: File; info: ops.MediaInfo; layer: string | null; onImported?: () => void; close: () => void }) {
   const cat = info.category;
-  const [vals, setVals] = useState<Vals>({ charsets: ["ASCII"], quantize_on: info.size > 500_000 });
+  const [vals, setVals] = useState<Vals>({ quantize_on: info.size > 500_000 });
   const [frame, setFrame] = useState(0), [dragFrame, setDragFrame] = useState<number | null>(null), [ready, setReady] = useState(false), busy = useRef(false);
   const cv = useRef<HTMLCanvasElement>(null), token = useRef(0);
   const set = (k: string, v: any) => setVals((o) => ({ ...o, [k]: v }));
   const g = (k: string, d: any) => (k in vals ? vals[k] : d);
 
   const frameTotal = () => {
-    if (cat === "font" || cat === "audio") return 1;
+    if (cat === "audio") return 1;
     let every = 1;
     try { every = Math.max(1, Math.trunc(parseFloat(String(g("every", 1)) || "1")) || 1); } catch { every = 1; }
     return ops.previewFrameCount(info, { every, layout: g("layout", "frames") });
@@ -52,10 +49,7 @@ function Body({ deckId, cardId, entryId, file, info, layer, onImported, close }:
     if (Number.isNaN(r)) throw new OpError("Enter a number.");
     return r;
   };
-  const collect = (): { kind: "font" | "media"; opts: any } => {
-    if (cat === "font") {
-      return { kind: "font", opts: { charsets: [...(vals.charsets || [])].sort(), custom: g("custom", ""), bitmap: g("font_style", "vector") === "bitmap", scale: num("font_scale", 1), steps: num("steps", 16, (s) => parseInt(s, 10)), px: num("px", 64, (s) => parseInt(s, 10)), smooth: !!vals.smooth, color: ops.parseColor(g("color", "#ffffff")) } };
-    }
+  const collect = (): { kind: "media"; opts: any } => {
     const quant = g("quantize_on", false) ? num("quantize_colors", 256, (s) => parseInt(s, 10)) : 0;
     if (quant && !(quant >= 1 && quant <= 256)) throw new OpError("Colors must be between 1 and 256.");
     return { kind: "media", opts: {
@@ -63,7 +57,7 @@ function Body({ deckId, cardId, entryId, file, info, layer, onImported, close }:
       svg_style: g("svg_style", "vector"), svg_scale: num("svg_scale", 1), steps: num("steps", 16, (s) => parseInt(s, 10)),
       color: g("color_on", false) ? ops.parseColor(g("color", "#ffffff")) : null, fps: num("fps", 4),
       want_audio: g("want_audio", true) && !info.audio_unsupported,
-      fixed_px: !!g("fixed_px", false), pixel_size: num("pixel_size", 0.1),
+      fixed_px: !!g("fixed_px", false), pixel_size: Math.round(num("pixel_size", 0.01) * 10 * 1e6) / 1e6,
     } };
   };
 
@@ -75,7 +69,7 @@ function Body({ deckId, cardId, entryId, file, info, layer, onImported, close }:
       try { c = collect(); } catch { return; }
       setReady(false);
       try {
-        const d2 = c.kind === "font" ? await ops.previewFont(file, c.opts) : await ops.previewMedia(info, c.opts, shown);
+        const d2 = await ops.previewMedia(info, c.opts, shown);
         if (t !== token.current) return;
         if (d2) {
           const canvas = cv.current!;
@@ -116,7 +110,7 @@ function Body({ deckId, cardId, entryId, file, info, layer, onImported, close }:
     token.current++;
     const res = await editAsync<ops.ImportResult>(deckId, cardId, "Importing", (task: Task, rc, rec) => {
       const ctx = { rc, rec, entryId };
-      return c.kind === "font" ? ops.importFont(ctx, info, c.opts, task, layer) : ops.importMedia(ctx, info, c.opts, task, layer);
+      return ops.importMedia(ctx, info, c.opts, task, layer);
     });
     busy.current = false;
     if (res) {
@@ -135,51 +129,37 @@ function Body({ deckId, cardId, entryId, file, info, layer, onImported, close }:
   const color = (key: string, enabled = true) => <ColorField value={g(key, "#ffffff")} enabled={enabled} onChange={(v) => set(key, v)} />;
 
   const options: React.ReactNode[] = [];
-  if (cat === "font") {
-    const chosen: string[] = vals.charsets || [];
-    options.push(
-      <div key="cs" className="flex flex-col">{charsetNames().map((name) => (
-        <label key={name} className="flex cursor-pointer items-center gap-2.5 py-1.5 text-[13px]">
-          <Checkbox checked={chosen.includes(name)} onCheckedChange={(c) => set("charsets", c ? [...chosen, name] : chosen.filter((x) => x !== name))} />{name}
-        </label>))}</div>,
-      <Field key="chars" label="Characters"><Input value={g("custom", "")} onChange={(e) => set("custom", e.target.value)} /></Field>,
-      <Choice key="fs" label="Draw as" value={g("font_style", "vector")} options={[["vector", "Vector"], ["bitmap", "Bitmap"]]} onChange={(v) => set("font_style", v)} />,
-    );
-    if (g("font_style", "vector") === "bitmap") options.push(N("px", "Pixels per em", 64, { step: 8, minimum: 4, maximum: 512 }), <SwitchRow key="sm" label="Smooth" value={!!vals.smooth} onChange={(v) => set("smooth", v)} />);
-    else options.push(N("font_scale", "Scale", 1, { step: 0.1, minimum: 0.01, decimals: 2 }), N("steps", "Curve steps", 16, { step: 1, minimum: 2, maximum: 64 }));
-    options.push(<div key="col">{color("color")}</div>);
-  } else {
-    if (vector) options.push(<Choice key="ss" label="Draw as" value={g("svg_style", "vector")} options={[["vector", "Vector"], ["bitmap", "Bitmap"]]} onChange={(v) => set("svg_style", v)} />);
-    const fixedPx = bitmapLike && !!g("fixed_px", false);
-    if (!(fixedPx && !vector)) options.push(N(bitmapLike ? "scale" : "svg_scale", "Scale", 1, { step: 0.1, minimum: 0.01, decimals: 2 }));
-    if (bitmapLike) {
-      options.push(<SwitchRow key="fp" label="Fixed Pixel Size" value={fixedPx} onChange={(v) => set("fixed_px", v)} />);
-      if (fixedPx) options.push(N("pixel_size", "Pixel size (Castle units)", 0.1, { step: 0.05, minimum: 0.001, decimals: 3 }), <InfoNote key="fpn">Every pixel is drawn this wide and never resampled. Adding to a drawing that has another pixel size resizes the new image to match it.</InfoNote>);
-    }
-    if (!bitmapLike) options.push(N("steps", "Curve steps", 16, { step: 1, minimum: 2, maximum: 64 }));
-    if (bitmapLike) options.push(<SwitchRow key="sm" label="Smooth" value={!!vals.smooth} onChange={(v) => set("smooth", v)} />);
-    if (cat === "animation" || cat === "video") options.push(N("every", "Every Nth frame", 1, { step: 1, minimum: 1 }));
-    if (multi && (cat === "image" || cat === "vector")) {
-      if (layer === null) {
-        options.push(<Choice key="lay" label="Several files" value={g("layout", "frames")} options={[["frames", "Frames of one actor"], ["separate", "Separate actors"]]} onChange={(v) => set("layout", v)} />,
-          <InfoNote key="ln">{g("layout", "frames") === "frames" ? "Every file becomes a frame of this blueprint." : "Every file becomes its own blueprint."}</InfoNote>);
-      } else options.push(<InfoNote key="ln">Every file becomes a frame of this layer.</InfoNote>);
-      if (g("layout", "frames") === "frames") options.push(N("fps", "Frames per second", 4, { step: 1, minimum: 1, maximum: 60, decimals: 1 }));
-      if (bitmapLike && cat === "image") options.push(<SwitchRow key="ns" label="Keep original sizes" value={!!vals.no_scale} onChange={(v) => set("no_scale", v)} />);
-    }
-    if (vector) {
-      const on = !!g("color_on", false);
-      options.push(<SwitchRow key="co" label="Override color" value={on} onChange={(v) => set("color_on", v)} />, <div key="cc">{color("color", on)}</div>);
-    }
-    if (bitmapLike) {
-      options.push(<SwitchRow key="qo" label="Reduce colors" value={!!g("quantize_on", false)} onChange={(v) => set("quantize_on", v)} />);
-      if (g("quantize_on", false)) options.push(N("quantize_colors", "Colors", 256, { step: 8, minimum: 1, maximum: 256 }));
-    }
-    if (cat === "video" && info.has_audio) {
-      if (info.audio_unsupported) options.push(<InfoNote key="au">This device can't encode MP3, so this video's sound can't be uploaded.</InfoNote>);
-      else options.push(<SwitchRow key="wa" label="Sound" value={g("want_audio", true)} onChange={(v) => set("want_audio", v)} />);
-    }
+  if (vector) options.push(<Choice key="ss" label="Draw as" value={g("svg_style", "vector")} options={[["vector", "Vector"], ["bitmap", "Bitmap"]]} onChange={(v) => set("svg_style", v)} />);
+  const fixedPx = bitmapLike && !!g("fixed_px", false);
+  if (!(fixedPx && !vector)) options.push(N(bitmapLike ? "scale" : "svg_scale", "Scale", 1, { step: 0.1, minimum: 0.01, decimals: 2 }));
+  if (bitmapLike) {
+    options.push(<SwitchRow key="fp" label="Fixed Pixel Size" value={fixedPx} onChange={(v) => set("fixed_px", v)} />);
+    if (fixedPx) options.push(N("pixel_size", "Pixel size (world units)", 0.01, { step: 0.005, minimum: 0.0001, decimals: 4 }), <InfoNote key="fpn">Every pixel is drawn this wide and never resampled. Adding to a drawing that has another pixel size resizes the new image to match it.</InfoNote>);
   }
+  if (!bitmapLike) options.push(N("steps", "Curve steps", 16, { step: 1, minimum: 2, maximum: 64 }));
+  if (bitmapLike) options.push(<SwitchRow key="sm" label="Smooth" value={!!vals.smooth} onChange={(v) => set("smooth", v)} />);
+  if (cat === "animation" || cat === "video") options.push(N("every", "Every Nth frame", 1, { step: 1, minimum: 1 }));
+  if (multi && (cat === "image" || cat === "vector")) {
+    if (layer === null) {
+      options.push(<Choice key="lay" label="Several files" value={g("layout", "frames")} options={[["frames", "Frames of one actor"], ["separate", "Separate actors"]]} onChange={(v) => set("layout", v)} />,
+        <InfoNote key="ln">{g("layout", "frames") === "frames" ? "Every file becomes a frame of this blueprint." : "Every file becomes its own blueprint."}</InfoNote>);
+    } else options.push(<InfoNote key="ln">Every file becomes a frame of this layer.</InfoNote>);
+    if (g("layout", "frames") === "frames") options.push(N("fps", "Frames per second", 4, { step: 1, minimum: 1, maximum: 60, decimals: 1 }));
+    if (bitmapLike && cat === "image") options.push(<SwitchRow key="ns" label="Keep original sizes" value={!!vals.no_scale} onChange={(v) => set("no_scale", v)} />);
+  }
+  if (vector) {
+    const on = !!g("color_on", false);
+    options.push(<SwitchRow key="co" label="Override color" value={on} onChange={(v) => set("color_on", v)} />, <div key="cc">{color("color", on)}</div>);
+  }
+  if (bitmapLike) {
+    options.push(<SwitchRow key="qo" label="Reduce colors" value={!!g("quantize_on", false)} onChange={(v) => set("quantize_on", v)} />);
+    if (g("quantize_on", false)) options.push(N("quantize_colors", "Colors", 256, { step: 8, minimum: 1, maximum: 256 }));
+  }
+  if (cat === "video" && info.has_audio) {
+    if (info.audio_unsupported) options.push(<InfoNote key="au">This device can't encode MP3, so this video's sound can't be uploaded.</InfoNote>);
+    else options.push(<SwitchRow key="wa" label="Sound" value={g("want_audio", true)} onChange={(v) => set("want_audio", v)} />);
+  }
+
 
   return (
     <div className="flex flex-col gap-3.5 overflow-y-auto" style={{ width: 300, maxHeight: "min(520px, 66vh)" }}>

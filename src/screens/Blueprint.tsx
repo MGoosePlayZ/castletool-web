@@ -11,14 +11,14 @@ import { drawFrame, drawingInfo, frameCount, d2Of, makeCanvas, sceneBounds } fro
 import { IMAGE_EXTS, VIDEO_EXTS, VECTOR_EXTS, FONT_EXTS, AUDIO_EXTS } from "@/lib/imaging";
 import { musicStats } from "@/lib/synth";
 import { PianoRoller } from "@/components/PianoRoller";
-import { audioUrls } from "@/lib/audio";
+import { AUDIO_SPEEDS, audioUrls } from "@/lib/audio";
 import { VOLUME_OFFSET_MIN, VOLUME_OFFSET_MAX, clampVolumeOffset } from "@/lib/midi";
 import { pickFile, pickFiles, saveBlob } from "@/lib/pick";
 import { cn } from "@/lib/utils";
 
 const ARCHIVES = ["zip", "tar", "gz", "tgz", "bz2", "xz", "tbz2", "txz"];
 const ext = (s: Set<string>) => [...s].map((e) => e.replace(".", ""));
-const MEDIA_EXTS = [...new Set([...ext(IMAGE_EXTS), ...ext(VIDEO_EXTS), ...ext(VECTOR_EXTS), ...ext(FONT_EXTS), ...ARCHIVES])].sort();
+const MEDIA_EXTS = [...new Set([...ext(IMAGE_EXTS), ...ext(VIDEO_EXTS), ...ext(VECTOR_EXTS), ...ARCHIVES])].sort();
 const AUDIO_PICK = [...new Set([...ext(AUDIO_EXTS), ...ARCHIVES])].sort();
 
 type Tab = "media" | "music" | "audio";
@@ -66,6 +66,7 @@ export async function startMediaImport(deckId: string, cardId: string, entryId: 
   let info: ops.MediaInfo;
   try { info = await ops.inspectMedia(picked.length === 1 ? f : picked); } catch (e: any) { toast(e?.message || String(e), true); return; }
   if (info.category === "audio") { toast("That's audio. Use the Audio tab.", true); return; }
+  if (info.category === "font") { toast("Fonts are used from text layers in the art editor.", true); return; }
   if (info.unsupported) { toast(info.unsupported, true); return; }
   if (hooks.before && !(await hooks.before())) return;
   openImportDialog({ deckId, cardId, entryId, file: f, info, layer: target, onImported: hooks.done });
@@ -228,14 +229,14 @@ function MusicPanel({ deckId, cardId, entryId }: P) {
 
 // ── AUDIO ──────────────────────────────────────────────────────────────
 function AudioPanel({ deckId, cardId, entryId }: P) {
-  const rc = cardOf(deckId, cardId)!, urls = audioUrls(ops.libraryOf(rc)[entryId]);
+  const rc = cardOf(deckId, cardId)!, urls = audioUrls(ops.libraryOf(rc)[entryId]), [speed, setSpeed] = useState(0);
   const upload = async () => {
     if (!(await ensureOnline())) return;
     const f = await pickFile(AUDIO_PICK);
     if (!f) return;
     let info: ops.MediaInfo;
     try { info = await ops.inspectMedia(f); } catch (e: any) { toast(e?.message || String(e), true); return; }
-    const res = await editAsync(deckId, cardId, "Uploading audio", (task, c, rec) => ops.importAudio({ rc: c, rec, entryId }, info, task));
+    const res = await editAsync(deckId, cardId, "Uploading audio", (task, c, rec) => ops.importAudio({ rc: c, rec, entryId }, info, task, speed));
     if (res) toast(res.length === 1 ? "Audio added." : `Added ${res.length} actors.`);
   };
   return (
@@ -246,8 +247,13 @@ function AudioPanel({ deckId, cardId, entryId }: P) {
           <span className="min-w-0 flex-1 select-text break-all text-xs">{u.replace(/\?.*$/, "").replace(/\/+$/, "").split("/").pop()}</span>
         </div>
       )) : <div className="flex h-[120px] items-center justify-center"><CI name="unmuted" size={30} color={MINOR1} /></div>}
-      <div className="mt-3.5 flex"><PillButton label="Upload" filled icon={<CI name="upload" size={18} color={BG} />} onClick={() => void upload()} /></div>
+      <div className="mt-3.5 flex flex-col gap-1.5">
+        <Minor>Speed up</Minor>
+        <div className="flex gap-1.5">{AUDIO_SPEEDS.map((k, i) => <PillButton key={k} label={`${k}x`} filled={speed === i} onClick={() => setSpeed(i)} className="min-w-0 flex-1 px-0" />)}</div>
+      </div>
+      <div className="mt-2 flex"><PillButton label="Upload" filled icon={<CI name="upload" size={18} color={BG} />} onClick={() => void upload()} /></div>
       <InfoNote>Audio is split into 30 second segments</InfoNote>
+      {speed > 0 && <InfoNote>{`The sound is sped up ${AUDIO_SPEEDS[speed]}x (samples are dropped, which bit-crushes it), then played back at 1/${AUDIO_SPEEDS[speed]} speed. Each 30 second segment holds ${AUDIO_SPEEDS[speed]}x more of the sound, so fewer segments are needed.`}</InfoNote>}
       <LogBox />
     </div>
   );
