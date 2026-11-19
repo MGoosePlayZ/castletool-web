@@ -18,10 +18,6 @@ Sign in with your Castle account, clone decks, add images, animations, video, SV
 - **Responsive layout:** An Android-style experience on phones and narrow windows, with a three-pane layout (decks, cards, blueprints/editor) on wider screens.
 - **Browser storage:** Deck data is stored locally in IndexedDB.
 
-## What is the url of castletoolweb?
-
-It's https://mgooseplayz.github.io/castletool-web
-
 ## Development
 
 ```sh
