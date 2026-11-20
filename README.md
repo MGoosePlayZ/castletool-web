@@ -1,8 +1,11 @@
 # Castletool Web
 
-[![React](https://img.shields.io/badge/React-149ECA?style=flat&logo=react&logoColor=white)](https://react.dev/)
-[![shadcn/ui](https://img.shields.io/badge/shadcn%2Fui-18181B?style=flat&logo=shadcnui&logoColor=white)](https://ui.shadcn.com/)
-[![MIT License](https://img.shields.io/github/license/MGoosePlayZ/castletool-web?style=flat&label=License&logo=opensourceinitiative&logoColor=white)](./LICENSE)
+[![React](https://img.shields.io/badge/React-149ECA?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
+[![shadcn/ui](https://img.shields.io/badge/shadcn%2Fui-18181B?style=for-the-badge&logo=shadcnui&logoColor=white)](https://ui.shadcn.com/)
+[![MIT License](https://img.shields.io/github/license/MGoosePlayZ/castletool-web?style=for-the-badge&label=License&logo=opensourceinitiative&logoColor=white)](./LICENSE)
+[![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vite.dev)
+[![Capacitor](https://img.shields.io/badge/-Capacitor-119EFF?style=for-the-badge&logo=capacitor&logoColor=white)](https://capacitorjs.com/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 
 **Castletool, in your browser.** A web port of [Castletool for Android](https://github.com/MGoosePlayZ/castletool-android) (CTA) and the Castletool CLI.
 
