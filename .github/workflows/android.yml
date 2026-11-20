@@ -35,13 +35,7 @@ jobs:
       # Icon + splash from public/favicon.png (black background). Version code is above any old Flet build so this installs as an update.
       - name: Icon, splash and version
         run: |
-          mkdir resources
-          F=public/favicon.png
-          convert $F -filter Lanczos -resize 1024x1024 resources/icon-only.png
-          convert -size 1024x1024 xc:black resources/icon-background.png
-          convert -size 1024x1024 xc:black \( resources/icon-only.png -resize 676x676 \) -gravity center -composite resources/icon-foreground.png
-          convert -size 2732x2732 xc:black \( resources/icon-only.png -resize 512x512 \) -gravity center -composite resources/splash.png
-          cp resources/splash.png resources/splash-dark.png
+          node scripts/make-resources.mjs
           npx capacitor-assets generate --android \
             --iconBackgroundColor '#000000' --iconBackgroundColorDark '#000000' \
             --splashBackgroundColor '#000000' --splashBackgroundColorDark '#000000'
