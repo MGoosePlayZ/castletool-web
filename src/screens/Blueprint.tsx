@@ -1,24 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CI, ColorField, IconButton, InfoNote, MI, Minor, PillButton, TextAction, showDialog, contrastBg } from "@/components/widgets";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { CI, ColorField, IconButton, InfoNote, MI, Minor, PillButton, TextAction, confirmDialog, showDialog, contrastBg } from "@/components/widgets";
 import { LogView } from "@/components/LogView";
 import { openImportDialog } from "@/components/ImportDialog";
 import { BlueprintIcon } from "./Card";
+import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { BG, MAJOR, MINOR1, SEP } from "@/lib/theme";
-import { useApp, cardOf, editQuick, editAsync, ensureOnline, toast, back, nav, useApp as _u, get } from "@/lib/store";
+import { useApp, cardOf, editQuick, editAsync, ensureOnline, toast, back, nav, setSetting, useApp as _u, get } from "@/lib/store";
 import * as ops from "@/lib/ops";
-import { drawFrame, drawingInfo, frameCount, d2Of, makeCanvas, sceneBounds } from "@/lib/drawing";
+import { OpError, drawFrame, drawingInfo, frameCount, layerSummary, layersOf, d2Of, deleteLayer, moveLayer, renameLayer, makeCanvas, sceneBounds, NEW } from "@/lib/drawing";
 import { IMAGE_EXTS, VIDEO_EXTS, VECTOR_EXTS, FONT_EXTS, AUDIO_EXTS } from "@/lib/imaging";
 import { musicStats } from "@/lib/synth";
 import { PianoRoller } from "@/components/PianoRoller";
 import { AUDIO_SPEEDS, audioUrls } from "@/lib/audio";
 import { VOLUME_OFFSET_MIN, VOLUME_OFFSET_MAX, clampVolumeOffset } from "@/lib/midi";
 import { pickFile, pickFiles, saveBlob } from "@/lib/pick";
+import { exportLayer } from "@/lib/export";
 import { cn } from "@/lib/utils";
 
 const ARCHIVES = ["zip", "tar", "gz", "tgz", "bz2", "xz", "tbz2", "txz"];
 const ext = (s: Set<string>) => [...s].map((e) => e.replace(".", ""));
 const MEDIA_EXTS = [...new Set([...ext(IMAGE_EXTS), ...ext(VIDEO_EXTS), ...ext(VECTOR_EXTS), ...ARCHIVES])].sort();
+const LAYER_ROW_H = 48;
 const AUDIO_PICK = [...new Set([...ext(AUDIO_EXTS), ...ARCHIVES])].sort();
 
 type Tab = "media" | "music" | "audio";
@@ -74,11 +81,18 @@ export async function startMediaImport(deckId: string, cardId: string, entryId: 
 
 // ── MEDIA ──────────────────────────────────────────────────────────────
 function MediaPanel({ deckId, cardId, entryId }: P) {
+  const { legacyEditor } = useApp();
   const rc = cardOf(deckId, cardId)!, bp = ops.libraryOf(rc)[entryId], d2 = d2Of(bp), has = !!d2 && frameCount(d2) > 0;
   return (
     <div className="flex flex-col gap-2.5">
       {has ? <PreviewBlock d2={d2} /> : <div className="flex h-[140px] items-center justify-center"><CI name="pencil" size={30} color={MINOR1} /></div>}
-      <div className="flex"><PillButton label="Open Editor" filled icon={<CI name="pencil" size={18} color={BG} />} onClick={() => nav({ editor: true })} /></div>
+      {legacyEditor ? <>
+        <div className="flex"><PillButton label="New Layer" filled icon={<CI name="add" size={18} color={BG} />} onClick={() => void startMediaImport(deckId, cardId, entryId, NEW)} /></div>
+        <LayerList {...{ deckId, cardId, entryId }} onPick={(id) => void startMediaImport(deckId, cardId, entryId, id)} />
+      </> : (
+        <div className="flex"><PillButton label="Open Editor" filled icon={<CI name="pencil" size={18} color={BG} />} onClick={() => nav({ editor: true })} /></div>
+      )}
+      <div className="mt-1 flex items-center"><span className="flex-1 text-sm" style={{ color: MINOR1 }}>Legacy layer view</span><Switch checked={legacyEditor} onCheckedChange={(v) => setSetting("legacy_editor", v)} /></div>
       <LogBox />
     </div>
   );
@@ -106,6 +120,58 @@ function PreviewBlock({ d2 }: { d2: any }) {
         </div>
       )}
     </div>
+  );
+}
+
+function LayerRow({ layer, deckId, cardId, entryId, onPick }: { layer: any; onPick: (id: string) => void } & P) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: layer.id });
+  const run = (fn: (d2: any) => void) => editQuick(deckId, cardId, (rc) => { const d2 = d2Of(ops.libraryOf(rc)[entryId]); if (!d2 || !layersOf(d2).length) throw new OpError("This blueprint has no drawing."); fn(d2); });
+  const rename = () => {
+    const Body = ({ close }: { close: () => void }) => {
+      const [v, setV] = useState(layer.title);
+      const save = () => { const name = v.trim(); if (!name) { toast("A layer needs a name.", true); return; } close(); if (name !== layer.title) void run((d2) => renameLayer(d2, layer.id, name)); };
+      (Body as any).save = save;
+      return <div style={{ width: 260 }}><Input autoFocus value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") save(); }} /></div>;
+    };
+    showDialog("Rename layer", (close) => <Body close={close} />, { actions: () => <TextAction label="Save" onClick={() => (Body as any).save?.()} /> });
+  };
+  const exportIt = async () => {
+    try {
+      const d2 = d2Of(ops.libraryOf(cardOf(deckId, cardId)!)[entryId]);
+      const r = await exportLayer(d2, layer.id);
+      const base = `${ops.blueprintTitle(ops.libraryOf(cardOf(deckId, cardId)!)[entryId], entryId)}-${layer.title || "Layer"}`.replace(/[\\/:*?"<>|]+/g, "_").trim() || "layer";
+      saveBlob(`${base}.png`, new Blob([r.bytes as BlobPart], { type: "image/png" }));   // an APNG is a PNG that animates, so .png opens everywhere
+      toast(r.frames > 1 ? `Exported ${r.frames} frames as APNG.` : "Exported PNG.");
+    } catch (e: any) { toast(e?.message || String(e), true); }
+  };
+  return (
+    <div ref={setNodeRef} className="flex items-center border-b bg-black" style={{ height: LAYER_ROW_H, borderColor: SEP, transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.7 : 1, position: "relative", zIndex: isDragging ? 5 : 0 }}>
+      <div {...attributes} {...listeners} className="flex cursor-grab touch-none items-center justify-center" style={{ width: 40, height: LAYER_ROW_H }}><MI name="menu" size={22} color={MINOR1} /></div>
+      <button type="button" onClick={rename} className="h-full min-w-0 flex-1 truncate text-left text-sm hover:bg-accent/40">{layer.title || "Layer"}</button>
+      <IconButton size={40} tooltip={frameCount(d2Of(ops.libraryOf(cardOf(deckId, cardId)!)[entryId])) > 1 ? "Export layer as APNG" : "Export layer as PNG"} onClick={exportIt}><CI name="download2" size={20} /></IconButton>
+      <IconButton size={40} tooltip="Overwrite layer" onClick={() => onPick(layer.id)}><CI name="upload" size={20} /></IconButton>
+      <IconButton size={40} tooltip="Delete layer" onClick={() => confirmDialog(`Delete "${layer.title || "Layer"}"?`, "", "Delete", () => void run((d2) => deleteLayer(d2, layer.id)))}><CI name="delete" size={20} /></IconButton>
+    </div>
+  );
+}
+
+/** Top layer first (like Castle's own layer list). Drag a layer's menu icon to move it. */
+function LayerList({ deckId, cardId, entryId, onPick }: P & { onPick: (id: string) => void }) {
+  const rc = cardOf(deckId, cardId)!, d2 = d2Of(ops.libraryOf(rc)[entryId]), layers = layerSummary(d2), shown = [...layers].reverse();
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  if (!layers.length) return null;
+  const onEnd = (e: DragEndEvent) => {
+    if (!e.over || e.active.id === e.over.id) return;
+    const n = layers.length, from = shown.findIndex((l) => l.id === e.active.id), to = shown.findIndex((l) => l.id === e.over!.id);
+    // the list shows the top layer first: display index i is storage index n - 1 - i
+    void editQuick(deckId, cardId, (c) => moveLayer(d2Of(ops.libraryOf(c)[entryId]), n - 1 - from, n - 1 - to));
+  };
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onEnd}>
+      <SortableContext items={shown.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+        <div>{shown.map((l) => <LayerRow key={l.id} layer={l} {...{ deckId, cardId, entryId, onPick }} />)}</div>
+      </SortableContext>
+    </DndContext>
   );
 }
 

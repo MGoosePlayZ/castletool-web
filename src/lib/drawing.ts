@@ -213,11 +213,15 @@ export function sceneBounds(d2: any, idxs: number[]): number[] | null {
   return xs.length ? [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] : null;
 }
 
-/** Draw frame `i` of a Drawing2 onto a square canvas (transparent background). */
+/** Draw frame `i` of a Drawing2 onto a square canvas (transparent background).
+ *  The picture is built on a scratch canvas and copied over in one step: this function awaits image decoding, so several calls
+ *  can be in flight at once (a playing preview, a slider drag), and drawing straight onto `cv` stacked their frames on top of each
+ *  other, which only shows with transparent frames. A call that was overtaken by a newer one draws nothing. */
 export async function drawFrame(cv: HTMLCanvasElement, d2: any, i: number, bd: number[] | null) {
-  const x = cv.getContext("2d")!, Z = cv.width;
-  x.clearRect(0, 0, Z, Z);
-  if (!bd) return;
+  const Z = cv.width, seq = ((cv as any).__drawSeq = ((cv as any).__drawSeq || 0) + 1);
+  const out = cv.getContext("2d")!;
+  if (!bd) { out.clearRect(0, 0, Z, Z); return; }
+  const buf = makeCanvas(Z, Z), x = buf.getContext("2d")!;
   const [mnx, mny, mxx, mxy] = bd, w = Math.max(mxx - mnx, 1e-6), h = Math.max(mxy - mny, 1e-6);
   const k = (Z * 0.88) / Math.max(w, h), ox = (Z - w * k) / 2 - mnx * k, oy = (Z - h * k) / 2 - mny * k, ppu = +d2.drawData.fillPixelsPerUnit || 1;
   for (const fr of frameItems(d2, i)) {
@@ -240,6 +244,9 @@ export async function drawFrame(cv: HTMLCanvasElement, d2: any, i: number, bd: n
       x.stroke();
     }
   }
+  if ((cv as any).__drawSeq !== seq) return;      // a newer call owns the canvas now
+  out.clearRect(0, 0, Z, Z);
+  out.drawImage(buf, 0, 0);
 }
 
 /** Small preview icon (first frame) as a data URL; cached by the drawing's hash. */

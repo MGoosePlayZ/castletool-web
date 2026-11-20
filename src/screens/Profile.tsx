@@ -36,6 +36,7 @@ export function ProfileScreen({ onSignedIn }: { onSignedIn?: () => void }) {
       </div>
       <Separator />
       <div className="flex flex-col gap-2.5 p-3.5">
+        <div className="flex items-center"><span className="flex-1 text-sm">Legacy layer view</span><Switch checked={app.legacyEditor} onCheckedChange={(v) => setSetting("legacy_editor", v)} /></div>
         <div className="flex items-center"><span className="flex-1 text-sm">Developer mode</span><Switch checked={app.devMode} onCheckedChange={(v) => setSetting("dev_mode", v)} /></div>
         {app.devMode && <>
           <div className="relative w-[260px]">

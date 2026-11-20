@@ -321,6 +321,16 @@ export async function importMedia(ctx: Ctx, info: MediaInfo, optsIn: Partial<Med
   return { written, warnings };
 }
 
+/** The soundtrack of a video file, uploaded as this blueprint's sound (replaces a sound it already has). Used by the art editor's upload dialog. */
+export async function importVideoSound(ctx: Ctx, file: File, prog: Prog): Promise<void> {
+  if (!getToken()) throw new OpError("Sign in first: sound is uploaded to Castle.");
+  if (!canEncodeMp3()) throw new OpError("This device can't encode MP3, so the video's sound can't be uploaded.");
+  const actor = libraryOf(ctx.rc)[ctx.entryId];
+  ensureComponents(actor);
+  const res = await attachAudio(actor, file, true, prog, (m) => log(m));
+  if (!res.ok) throw new OpError(`The sound wasn't uploaded (${(res.error || "unknown error").split("\n")[0].slice(0, 120)}).`);
+}
+
 // ── MIDI → Music ───────────────────────────────────────────────────────
 export async function importMidi(ctx: Ctx, file: File, prog: Prog, volumeOffset = 0) {
   let mid;

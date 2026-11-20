@@ -11,7 +11,7 @@ import { encodeGif, encodeMp4, gifLossy, pngBlob } from './media';
 export interface EditorHost {
   arrow1: string; arrow2: string;                 // link display (line + tip) in frame cells
   exit(): void;                                   // close button
-  pickImages(): Promise<ImgSrc[] | null>;         // image layers: file picker + decode (null = cancelled; the failure is already reported)
+  pickImages(): Promise<(ImgSrc[] & { opts?: { every: number; smooth: boolean; q: number; fps: number } }) | null>;         // image layers: file picker + decode (null = cancelled; the failure is already reported)
   reloadImage(src: ImgSrc, every: number): Promise<ImgSrc | null>;
   loadImage(rec: { name: string; cat: string; b64: string; every: number; single: number }): Promise<ImgSrc | null>;   // a picture saved in drawData.artEditor
   pickFont(): Promise<{ family: string; label: string } | null>;   // text layers: upload a font file
@@ -50,7 +50,7 @@ const PAL=PALETTES.map(([n,c])=>({n:n+' ('+c.length+')',c}));
 const S={hu:0,hr:0,er:null,arc:false,dirty:0,pend:0,L:[],sel:0,cf:0,F:1,tool:'pencil',sub:{p:'squiggle',g:'modify',e:'cut',b:'fill'},size:8,color:'#000000',pip:0,dd:0,tab:'pal',szE:0,pal:0,open:1,pop:null,mod:0,tmp:null,view:{x:0,y:0,z:1},ppu:25.6,bg:1,cvd:0,ti:null,rev:0,fonts:[],fp:null,xp:null};
 const TL={shapes:['pencil','bucket','grab','eraser'],paint:['brush','spray','bucket','grab','eraser'],text:['create','edit','delete'],image:['create','edit','delete']};
 const nd=t=>t=='shapes'?{lines:[],fills:[],dirty:1}:t=='text'?{tx:[]}:t=='image'?{im:[]}:(()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return{cv:c}})();
-const cl=(d,t)=>{if(t=='text')return{tx:d.tx.map(i=>({...i}))};if(t=='image')return{im:d.im.map(i=>({...i,g:{...i.g}}))};if(t=='shapes'){const n={lines:JSON.parse(JSON.stringify(d.lines)),fills:d.fills.map(s=>({...s})),dirty:1};return n}const n=nd(t);n.cv.getContext('2d').drawImage(d.cv,0,0);return n};
+const cl=(d,t)=>{if(t=='text')return{tx:d.tx.map(i=>({...i}))};if(t=='image')return{im:d.im.map(i=>({...i,g:i.g.src&&i.g.src.frames.length>1?i.g:{...i.g}}))};if(t=='shapes'){const n={lines:JSON.parse(JSON.stringify(d.lines)),fills:d.fills.map(s=>({...s})),dirty:1};return n}const n=nd(t);n.cv.getContext('2d').drawImage(d.cv,0,0);return n};
 const addLayer=t=>{const n=Math.max(0,...S.L.map(l=>+(l.name.match(/(\d+)$/)||[0,0])[1]))+1;S.L.push({name:(t=='shapes'?'Shapes ':t=='text'?'Text ':t=='image'?'Image ':'Paint ')+n,type:t,vis:true,fr:Array.from({length:S.F},()=>nd(t))});S.sel=S.L.length-1};
 const cur=()=>{const l=S.L[S.sel];return l&&{l,d:l.fr[S.cf]}};
 const tools=()=>{const l=S.L[S.sel];return l?TL[l.type]:[]};
@@ -165,11 +165,11 @@ const lbox=it=>{if(it.g){const s=it.g.src,w=(s?s.w:64)*it.g.s/2,h=(s?s.h:64)*it.
 function wbox(it){const o=O(it),b=lbox(it),r=o.rot*PI180,cs=Math.cos(r),sn=Math.sin(r);let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
 [[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]].forEach(([u,v])=>{const X=o.x+u*cs-v*sn,Y=o.y+u*sn+v*cs;x0=Math.min(x0,X);y0=Math.min(y0,Y);x1=Math.max(x1,X);y1=Math.max(y1,Y)});const pd=it.g?2:o.fs*.6+2;return[x0-pd,y0-pd,x1+pd,y1+pd]}
 const thr=d=>{for(let i=3;i<d.length;i+=4)d[i]=d[i]>=128?255:0};
-// what an item becomes when saved: text and pictures without "smooth" get hard edges; "reduce colors" runs the importer's quantizer
+// what an item becomes when saved: text gets hard edges (pictures keep their own transparency, "smooth" only changes how they are resampled); "reduce colors" runs the importer's quantizer
 function bakeItem(ctx,it){const o=O(it);if(it.g&&!o.src)return;const b=wbox(it),x0=Math.max(0,Math.floor(b[0])),y0=Math.max(0,Math.floor(b[1])),x1=Math.min(W,Math.ceil(b[2])),y1=Math.min(H,Math.ceil(b[3]));if(x1<=x0||y1<=y0)return;
 const w=x1-x0,h=y1-y0,t=mkc(w,h),x=t.getContext('2d',{willReadFrequently:true});x.translate(-x0,-y0);if(it.g)drawImg(x,it,!!o.sm);else drawText(x,it);x.setTransform(1,0,0,1,0,0);
 if(it.g&&o.col&&o.src.svg){x.globalCompositeOperation='source-in';x.fillStyle=o.col;x.fillRect(0,0,w,h);x.globalCompositeOperation='source-over'}
-const hard=!it.g||!o.sm,qz=it.g&&o.q>0;if(hard||qz){const id=x.getImageData(0,0,w,h);if(hard)thr(id.data);if(qz)quantizeData(id.data,o.q,true);x.putImageData(id,0,0)}ctx.drawImage(t,x0,y0)}
+const hard=!it.g,qz=it.g&&o.q>0;if(hard||qz){const id=x.getImageData(0,0,w,h);if(hard)thr(id.data);if(qz)quantizeData(id.data,o.q,true);x.putImageData(id,0,0)}ctx.drawImage(t,x0,y0)}
 const bakeL=L=>{const c=mkc(W,H),x=c.getContext('2d');L.forEach(it=>bakeItem(x,it));return c};
 function bakeAll(l,d){if(d.ba&&d.ba.r==S.rev&&d.ba.w==W)return d.ba.c;const c=bakeL(lst(d));d.ba={r:S.rev,w:W,c};return c}
 function bakeSplit(d,L,k){const b=d.bs;if(b&&b.r==S.rev&&b.k==k&&b.w==W)return b;return d.bs={r:S.rev,k,w:W,a:bakeL(L.slice(0,k)),b:bakeL(L.slice(k+1))}}
@@ -225,7 +225,7 @@ function tapAgain(it){if(it.g)void pickSrc();else{S.mod='txt';queueMicrotask(()=
 // pictures: pick, decode (host), put on the layer. The first picture goes to the tapped group; more (archive / several files) fill the next frames, each on its own.
 async function pickSrc(){const l=S.L[S.sel],it=S.ti;if(!l||!it||!it.g)return;const g=it.g;S.pend++;let r=null;try{r=await host.pickImages()}finally{done()}
 if(!r||!r.length||!S.L.includes(l))return;const start=startOf(l,g),fresh=!g.src;
-r.forEach((s,j)=>{const t=j?newGroup(g.x,g.y):g;if(j){t.rot=g.rot;t.sm=g.sm}t.src=s;t.ev=1;t.fps=s.fps||4;if(fresh||j)t.s=Math.min(1,W/s.w,H/s.h);place(l,t,start+j,s.frames.length);if(s.frames.length>1)S.fp=s.fps})
+const op=r.opts||{};r.forEach((s,j)=>{const t=j?newGroup(g.x,g.y):g;if(j){t.rot=g.rot;t.sm=g.sm}t.src=s;t.ev=op.every||1;t.fps=s.fps||4;if(r.opts){t.sm=op.smooth?1:0;t.q=op.q||0}if(fresh||j)t.s=Math.min(1,W/s.w,H/s.h);place(l,t,start+j,s.frames.length);if(s.frames.length>1)S.fp=s.fps});if(r.length>1&&op.fps>0)S.fp=op.fps
 S.ti=l.fr[S.cf].im.find(x=>x.g==g)||null;tc();mark();th();ui();host.changed()}
 async function reEvery(l,it,v){const g=it.g,s=g.src;if(!s||!host.reloadImage)return;S.pend++;try{const n=await host.reloadImage(s,v);if(n){const st0=startOf(l,g);g.src=n;g.ev=v;g.fps=n.fps||g.fps;place(l,g,st0,n.frames.length);S.fp=n.fps;tc();mark();th();ui();host.changed()}}finally{done()}}
 function setNum(k,v){const c=cur();if(!c||!S.ti)return;const o0=O(S.ti);if(isNaN(v))return;

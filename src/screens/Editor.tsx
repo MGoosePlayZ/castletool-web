@@ -7,9 +7,11 @@ import "@/editor/editor.css";
 import { createEditor, type EditorApi } from "@/editor/engine";
 import { ColorPanel } from "@/components/widgets";
 import { IMAGE_PICK, loadImgSrc, loadImgSrcs } from "@/editor/sources";
+import { askImageImport } from "@/components/EditorImportDialog";
+import { audioUrls } from "@/lib/audio";
 import { registerFont } from "@/lib/fonts";
 import { pickFile, pickFiles, saveBlob } from "@/lib/pick";
-import { back, canRedo, canUndo, cardOf, editQuick, log, redo, toast, undo, useApp } from "@/lib/store";
+import { back, canRedo, canUndo, cardOf, editAsync, editQuick, ensureOnline, log, redo, toast, undo, useApp } from "@/lib/store";
 import * as ops from "@/lib/ops";
 import { OpError, d2Of, rehash } from "@/lib/drawing";
 
@@ -60,7 +62,22 @@ export function EditorScreen({ deckId, cardId, entryId }: { deckId: string; card
       pickImages: async () => {
         const files = await pickFiles(IMAGE_PICK);
         if (!files.length) return null;
-        try { return await loadImgSrcs(files); } catch (e: any) { toast(e?.message || String(e), true); return null; }
+        try {
+          const info = await ops.inspectMedia(files.length === 1 ? files[0] : files);
+          if (info.category === "audio") { toast("That's audio. Use the Audio tab.", true); return null; }
+          if (info.category === "font") { toast("Fonts are used from text layers.", true); return null; }
+          if (info.unsupported) { toast(info.unsupported, true); return null; }
+          const bp = ops.libraryOf(cardOf(deckId, cardId)!)[entryId];
+          const o = await askImageImport(info, !!bp && audioUrls(bp).length > 0);       // every setting is chosen once, here
+          if (!o) return null;
+          const srcs = await loadImgSrcs(files, { every: o.every, found: { files: info.files, cat: info.category } });
+          if (o.sound && info.category === "video" && info.files.length === 1) {
+            if (!(await flush()) || !(await ensureOnline())) return null;                // the video's soundtrack becomes the blueprint's sound
+            const done = await editAsync(deckId, cardId, "Importing sound", async (task, rc, rec) => { await ops.importVideoSound({ rc, rec, entryId }, info.files[0], task); return true; });
+            if (done) toast("Sound imported.");
+          }
+          return Object.assign(srcs, { opts: { every: o.every, smooth: o.smooth, q: o.quantize, fps: o.fps } });
+        } catch (e: any) { toast(e?.message || String(e), true); return null; }
       },
       reloadImage: async (src, every) => { try { return await loadImgSrc(src.file, src.cat, every); } catch (e: any) { toast(e?.message || String(e), true); return null; } },
       loadImage: async (r) => {

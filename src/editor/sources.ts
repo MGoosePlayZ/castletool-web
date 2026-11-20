@@ -59,11 +59,11 @@ async function decodeSrc(f: File, cat: Cat, every: number, single: boolean): Pro
 }
 
 /** What the person picked → one source per picture. An archive or a multi-file pick gives one source per file (each one frame of the layer). */
-export async function loadImgSrcs(picked: File[]): Promise<ImgSrc[]> {
-  const found = await gatherMedia(picked.length === 1 ? picked[0] : picked);
+export async function loadImgSrcs(picked: File[], o: { every?: number; found?: { files: File[]; cat: Cat } } = {}): Promise<ImgSrc[]> {
+  const found = o.found || await gatherMedia(picked.length === 1 ? picked[0] : picked);
   if (!found) throw new Error("No usable files found.");
   if (found.cat === "audio" || found.cat === "font") throw new Error(`That is a ${CATEGORY_LABELS[found.cat]} file, not a picture.`);
   const single = found.files.length > 1, out: ImgSrc[] = [];
-  for (const f of found.files) out.push(await loadImgSrc(f, found.cat, 1, single));
+  for (const f of found.files) out.push(await loadImgSrc(f, found.cat, Math.max(1, Math.trunc(o.every || 1)), single));
   return out;
 }

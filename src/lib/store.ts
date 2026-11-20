@@ -31,6 +31,7 @@ interface State {
   globalLoading: boolean;    // a "load more" request is running
   tab: string;
   devMode: boolean;
+  legacyEditor: boolean;     // Media tab shows the old layer list instead of the art editor
   logLevel: number;
   logs: { t: number; level: number; msg: string }[];
   nav: Nav;
@@ -57,6 +58,7 @@ let state: State = {
   globalLoading: false,
   tab: settings.tab || "RECENT",
   devMode: !!settings.dev_mode,
+  legacyEditor: !!settings.legacy_editor,
   logLevel: settings.log_level ?? 1,
   logs: [],
   nav: { deckId: null, cardId: null, bpId: null, profile: false },
@@ -88,6 +90,7 @@ export function setSetting(key: string, value: any) {
   settings[key] = value;
   saveSettings();
   if (key === "dev_mode") set({ devMode: !!value });
+  if (key === "legacy_editor") set({ legacyEditor: !!value });
   if (key === "log_level") set({ logLevel: value });
   if (key === "tab") set({ tab: value });
 }
