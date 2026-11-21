@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { PillButton, Minor, Title } from "@/components/widgets";
 import { CASTLE_LINKS, DISCLAIMER, MAJOR } from "@/lib/theme";
 import { buttonVariants } from "@/components/ui/button";
+import { TICKETS, openTicketSite } from "@/lib/tickets";
 import { signInPassword, signInCastle, cancelLogin, setSetting, get, toast, type CastleLoginUi } from "@/lib/store";
 
 export function FooterLinks() {
@@ -12,6 +13,7 @@ export function FooterLinks() {
         {CASTLE_LINKS.map(([label, url]) => (
           <a key={label} href={url} target="_blank" rel="noreferrer" className="rounded-lg px-2.5 py-2 text-[13px] font-medium hover:bg-accent" style={{ color: MAJOR }}>{label}</a>
         ))}
+        {TICKETS.siteUrl && <a href={TICKETS.siteUrl} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); void openTicketSite(); }} className="rounded-lg px-2.5 py-2 text-[13px] font-medium hover:bg-accent" style={{ color: MAJOR }}>Need help?</a>}
       </div>
       <Minor size={11} className="text-center">{DISCLAIMER}</Minor>
     </div>

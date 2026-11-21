@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { DialogHost, ProgressOverlay, CI, Minor, Title, Separator } from "@/components/widgets";
 import { TopBar, BackButton, CloneButton, ProfileButton } from "@/components/TopBar";
@@ -11,7 +11,9 @@ import { BlueprintView } from "@/screens/Blueprint";
 import { EditorScreen } from "@/screens/Editor";
 import { ProfileScreen } from "@/screens/Profile";
 import { SignInScreen } from "@/screens/SignIn";
-import { useApp, loadLocal, initNavigation, refreshProfile, getSetting, nav, requestNav, signedIn } from "@/lib/store";
+import { useApp, loadLocal, initNavigation, refreshProfile, getSetting, nav, requestNav, signedIn, signOut } from "@/lib/store";
+import { isBlocked, cachedUserId } from "@/lib/tickets";
+import { PillButton } from "@/components/widgets";
 import { SEP } from "@/lib/theme";
 import { IconButton, Avatar } from "@/components/widgets";
 import { cloneDialog } from "@/screens/Home";
@@ -93,9 +95,25 @@ function Desktop() {
   );
 }
 
+function BlockedScreen({ onSignOut }: { onSignOut: () => void }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+      <Title size={20}>Account blocked</Title>
+      <Minor size={13}>This account can't use Castletool Web.</Minor>
+      <PillButton label="Sign out" onClick={onSignOut} />
+    </div>
+  );
+}
+
 export function App() {
   const app = useApp(), desktop = useIsDesktop();
-  useEffect(() => { initNavigation(); void loadLocal(); void refreshProfile(); }, []);
+  const [blocked, setBlocked] = useState(false);
+  // blocklist is checked once per page load, after the saved sign-in has been refreshed
+  useEffect(() => {
+    initNavigation(); void loadLocal();
+    void refreshProfile().finally(async () => { const id = cachedUserId(); if (id && await isBlocked(id)) setBlocked(true); });
+  }, []);
+  if (blocked) return <div className="h-full w-full bg-black"><BlockedScreen onSignOut={() => { signOut(); setBlocked(false); }} /></div>;
   const needSignIn = !getSetting("onboarded") && !signedIn();
   return (
     <div className="h-full w-full bg-black">
